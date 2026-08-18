@@ -1,0 +1,54 @@
+package com.example.data.network
+
+import com.example.data.api.*
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Retrofit
+import retrofit2.converter.moshi.MoshiConverterFactory
+import java.util.concurrent.TimeUnit
+
+object RetrofitClient {
+    private const val BASE_URL = "https://apna-dhobi-backend.onrender.com/api/v1/"
+    private var authToken: String? = null
+
+    fun setAuthToken(token: String?) {
+        authToken = token
+    }
+
+    private val moshi = Moshi.Builder()
+        .add(KotlinJsonAdapterFactory())
+        .build()
+
+    private val loggingInterceptor = HttpLoggingInterceptor().apply {
+        level = HttpLoggingInterceptor.Level.BODY
+    }
+
+    private val okHttpClient = OkHttpClient.Builder()
+        .addInterceptor(loggingInterceptor)
+        .addInterceptor { chain ->
+            val requestBuilder = chain.request().newBuilder()
+            authToken?.let {
+                requestBuilder.addHeader("Authorization", "Bearer $it")
+            }
+            chain.proceed(requestBuilder.build())
+        }
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    private val retrofit = Retrofit.Builder()
+        .baseUrl(BASE_URL)
+        .client(okHttpClient)
+        .addConverterFactory(MoshiConverterFactory.create(moshi))
+        .build()
+
+    val authApi: AuthApi = retrofit.create(AuthApi::class.java)
+    val catalogApi: CatalogApi = retrofit.create(CatalogApi::class.java)
+    val ordersApi: OrdersApi = retrofit.create(OrdersApi::class.java)
+    val walletApi: WalletApi = retrofit.create(WalletApi::class.java)
+    val vendorsApi: VendorsApi = retrofit.create(VendorsApi::class.java)
+    val staffApi: StaffApi = retrofit.create(StaffApi::class.java)
+    val uploadsApi: UploadsApi = retrofit.create(UploadsApi::class.java)
+}

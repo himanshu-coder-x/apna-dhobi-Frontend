@@ -1,0 +1,27 @@
+package com.example.data.api
+
+import com.example.data.dto.VendorDto
+import retrofit2.Response
+import retrofit2.http.*
+
+interface VendorsApi {
+    @POST("vendors")
+    suspend fun register(@Body body: Map<String, Any>): Response<VendorDto>
+
+    @PATCH("vendors/{id}/toggle-status")
+    suspend fun toggleStatus(@Path("id") id: String, @Body body: Map<String, Boolean>): Response<Map<String, Any>>
+
+    @GET("vendors/{id}/stats")
+    suspend fun getStats(@Path("id") id: String): Response<VendorStatsDto>
+}
+
+data class VendorStatsDto(
+    val todayOrders: Int,
+    val pendingOrders: Int,
+    val activeOrders: Int,
+    val completedOrders: Int,
+    val revenue: Double,
+    val commission: Double,
+    val netEarnings: Double,
+    val rating: Double
+)

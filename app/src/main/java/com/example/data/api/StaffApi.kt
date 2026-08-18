@@ -1,0 +1,29 @@
+package com.example.data.api
+
+import retrofit2.Response
+import retrofit2.http.*
+
+interface StaffApi {
+    // Worker management
+    @POST("workers")
+    suspend fun registerWorker(@Body body: Map<String, String>): Response<Map<String, Any>>
+
+    @GET("workers")
+    suspend fun getWorkers(): Response<List<Map<String, Any>>>
+
+    @PATCH("workers/{id}/status")
+    suspend fun updateWorkerStatus(@Path("id") id: String, @Body body: Map<String, Boolean>): Response<Map<String, Any>>
+
+    // Task management
+    @POST("tasks")
+    suspend fun assignTask(@Body body: Map<String, String>): Response<Map<String, Any>>
+
+    @GET("tasks/vendor")
+    suspend fun getVendorTasks(): Response<List<Map<String, Any>>>
+
+    @GET("tasks/worker")
+    suspend fun getWorkerTasks(): Response<List<Map<String, Any>>>
+
+    @PATCH("tasks/{id}/status")
+    suspend fun updateTaskStatus(@Path("id") id: String, @Body body: Map<String, String>): Response<Map<String, Any>>
+}

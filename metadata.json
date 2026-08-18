@@ -1,0 +1,6 @@
+{
+  "name": "Apna Dhobi",
+  "description": "Premium modern Indian-themed multi-vendor laundry mobile application",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

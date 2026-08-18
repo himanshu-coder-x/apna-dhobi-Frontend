@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Production backend uses HTTPS. No cleartext domains required. -->
+</network-security-config>
