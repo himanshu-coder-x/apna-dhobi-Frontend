@@ -31,9 +31,78 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
 import com.example.ui.theme.*
+import androidx.compose.ui.layout.ContentScale
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.sin
+
+// In Memory LRU Image Cache for ultra-fast native image performance
+private val imageMemoryCache = android.util.LruCache<String, ImageBitmap>(50)
+
+@Composable
+fun ApnaNetworkImage(
+    url: String?,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop,
+    placeholder: @Composable () -> Unit = {}
+) {
+    if (url.isNullOrBlank()) {
+        placeholder()
+        return
+    }
+
+    val resolvedUrl = when {
+        url.startsWith("http://") || url.startsWith("https://") -> url
+        url.startsWith("/") -> "http://10.0.2.2:3000$url"
+        else -> "http://10.0.2.2:3000/$url"
+    }
+
+    var bitmap by remember(resolvedUrl) {
+        mutableStateOf(imageMemoryCache.get(resolvedUrl))
+    }
+
+    LaunchedEffect(resolvedUrl) {
+        if (bitmap == null) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val connection = java.net.URL(resolvedUrl).openConnection() as java.net.HttpURLConnection
+                    connection.doInput = true
+                    connection.connectTimeout = 6000
+                    connection.readTimeout = 6000
+                    connection.connect()
+                    if (connection.responseCode == 200) {
+                        val inputStream = connection.inputStream
+                        val decoded = android.graphics.BitmapFactory.decodeStream(inputStream)
+                        decoded?.let {
+                            val imgBitmap = it.asImageBitmap()
+                            imageMemoryCache.put(resolvedUrl, imgBitmap)
+                            bitmap = imgBitmap
+                        }
+                    }
+                } catch (e: Throwable) {
+                    // Fallback gracefully
+                }
+            }
+        }
+    }
+
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap!!,
+            contentDescription = contentDescription,
+            modifier = modifier,
+            contentScale = contentScale
+        )
+    } else {
+        placeholder()
+    }
+}
 
 /**
  * Animated Washing Bubble Loader or Splash Background
@@ -206,12 +275,20 @@ fun PromoBannerSlider(
 
     if (banners.isEmpty()) return
 
-    val activeBanner = banners[activePage]
+    // Safe page index check
+    val safeIndex = activePage.coerceIn(0, (banners.size - 1).coerceAtLeast(0))
+    val activeBanner = banners[safeIndex]
     
-    // Helper to parse hex strings to Color
+    // Helper to parse hex strings to Color with proper alpha
     fun parseHex(hex: String): Color {
         return try {
-            Color(hex.trim().removePrefix("0x").removePrefix("0X").removePrefix("#").toLong(16))
+            val clean = hex.trim().removePrefix("#").removePrefix("0x").removePrefix("0X")
+            val fullHex = when (clean.length) {
+                6 -> "FF$clean"
+                8 -> clean
+                else -> "FF1E6BFF"
+            }
+            Color(fullHex.toLong(16))
         } catch (e: Exception) {
             RoyalBlue
         }
@@ -223,82 +300,487 @@ fun PromoBannerSlider(
         listOf(RoyalBlue, SaffronOrange)
     }
 
+    val rawImg = activeBanner.imageUrl?.takeIf { it.isNotBlank() }
+        ?: activeBanner.mediaUrl?.takeIf { it.isNotBlank() }
+
+    val resolvedImgUrl = rawImg?.let { url ->
+        when {
+            url.startsWith("http://") || url.startsWith("https://") -> url
+            url.startsWith("/") -> "http://10.0.2.2:3000$url"
+            else -> "http://10.0.2.2:3000/$url"
+        }
+    }
+
     val brandTag = activeBanner.brandName?.takeIf { it.isNotBlank() }
         ?: activeBanner.badge?.takeIf { it.isNotBlank() }
         ?: "APNA DHOBI"
 
+    val hasTitle = !activeBanner.title.isNullOrBlank() && !activeBanner.title.equals("Untitled Banner", ignoreCase = true)
+    val shouldShowText = (activeBanner.showTextOverlay != false) && hasTitle
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(175.dp)
-            .shadow(6.dp, RoundedCornerShape(20.dp))
+            .height(142.dp)
+            .shadow(4.dp, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(
                 brush = Brush.horizontalGradient(bannerColors),
-                shape = RoundedCornerShape(20.dp)
+                shape = RoundedCornerShape(16.dp)
             )
-            .clickable { onPromoClick(activeBanner.redirectUrl ?: activeBanner.code ?: "") }
-            .padding(16.dp),
+            .clickable { onPromoClick(activeBanner.redirectUrl ?: activeBanner.code ?: "") },
         contentAlignment = Alignment.CenterStart
     ) {
-        // Bubble watermark visuals
-        AnimatedWashingBubbles(modifier = Modifier.fillMaxSize())
-
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = 16.dp, end = 8.dp),
-            verticalArrangement = Arrangement.Center
-        ) {
-            Surface(
-                shape = RoundedCornerShape(50.dp),
-                color = Color.White.copy(alpha = 0.25f),
-                modifier = Modifier.padding(bottom = 8.dp)
-            ) {
-                Text(
-                    text = brandTag.uppercase(),
-                    color = Color.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                )
-            }
-
-            Text(
-                text = activeBanner.title ?: "",
-                color = Color.White,
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Black,
-                lineHeight = 23.sp
+        if (resolvedImgUrl != null) {
+            // Render actual uploaded/preset media image from Admin Panel
+            ApnaNetworkImage(
+                url = resolvedImgUrl,
+                contentDescription = activeBanner.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
             )
 
-            if (!activeBanner.subtitle.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = activeBanner.subtitle,
-                    color = LightCream,
-                    fontSize = 13.sp,
-                    maxLines = 2
+            // If text overlay is enabled, show subtle dark gradient for high contrast
+            if (shouldShowText) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.35f),
+                                    Color.Black.copy(alpha = 0.80f)
+                                )
+                            )
+                        )
                 )
+            }
+        } else {
+            // Bubble watermark visuals for gradient banners
+            AnimatedWashingBubbles(modifier = Modifier.fillMaxSize())
+        }
+
+        // Text & Branding Content Overlay
+        if (shouldShowText || resolvedImgUrl == null) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp, vertical = 12.dp)
+                    .padding(bottom = 12.dp, end = 6.dp),
+                verticalArrangement = Arrangement.Center
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(50.dp),
+                    color = Color.White.copy(alpha = 0.25f),
+                    modifier = Modifier.padding(bottom = 4.dp)
+                ) {
+                    Text(
+                        text = brandTag.uppercase(),
+                        color = Color.White,
+                        fontSize = 9.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
+                }
+
+                if (hasTitle) {
+                    Text(
+                        text = activeBanner.title ?: "",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Black,
+                        lineHeight = 19.sp
+                    )
+                }
+
+                if (!activeBanner.subtitle.isNullOrBlank() && !activeBanner.subtitle.equals("No subtitle provided", ignoreCase = true)) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = activeBanner.subtitle,
+                        color = LightCream,
+                        fontSize = 11.sp,
+                        maxLines = 2
+                    )
+                }
             }
         }
 
         // Slide Indicator Dots (● ○ ○)
-        Row(
+        if (banners.size > 1) {
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                banners.indices.forEach { index ->
+                    Box(
+                        modifier = Modifier
+                            .size(if (index == safeIndex) 8.dp else 6.dp)
+                            .background(
+                                color = if (index == safeIndex) Color.White else Color.White.copy(alpha = 0.5f),
+                                shape = CircleShape
+                            )
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Modern Washing Appliance Graphic (Stylized 3D Metallic Washing Machine for Promo Banners)
+ */
+@Composable
+fun StylizedWashingApplianceGraphic(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        // Outer Machine Body in Metallic White/Silver with soft perspective
+        val bodyPath = Path().apply {
+            moveTo(w * 0.12f, h * 0.10f)
+            lineTo(w * 0.88f, h * 0.06f)
+            lineTo(w * 0.94f, h * 0.88f)
+            lineTo(w * 0.18f, h * 0.94f)
+            close()
+        }
+        drawPath(
+            path = bodyPath,
+            brush = Brush.linearGradient(
+                colors = listOf(Color(0xFFFFFFFF), Color(0xFFF1F5F9), Color(0xFFCBD5E1)),
+                start = Offset(0f, 0f),
+                end = Offset(w, h)
+            )
+        )
+
+        // Top Control Dark Dashboard
+        val panelPath = Path().apply {
+            moveTo(w * 0.14f, h * 0.13f)
+            lineTo(w * 0.87f, h * 0.09f)
+            lineTo(w * 0.88f, h * 0.25f)
+            lineTo(w * 0.15f, h * 0.28f)
+            close()
+        }
+        drawPath(
+            path = panelPath,
+            brush = Brush.horizontalGradient(
+                colors = listOf(Color(0xFF334155), Color(0xFF1E293B), Color(0xFF0F172A))
+            )
+        )
+
+        // Control Panel Knob
+        drawCircle(
+            color = Color(0xFF64748B),
+            radius = w * 0.045f,
+            center = Offset(w * 0.48f, h * 0.18f)
+        )
+        drawCircle(
+            color = Color(0xFF38BDF8),
+            radius = w * 0.02f,
+            center = Offset(w * 0.48f, h * 0.18f)
+        )
+
+        // Door Outer Chrome Ring
+        val doorCenter = Offset(w * 0.54f, h * 0.60f)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(Color(0xFFF8FAFC), Color(0xFF94A3B8), Color(0xFF475569)),
+                center = doorCenter,
+                radius = w * 0.32f
+            ),
+            radius = w * 0.29f,
+            center = doorCenter
+        )
+
+        // Door Glass (Deep Blue Tint with reflection)
+        drawCircle(
+            brush = Brush.linearGradient(
+                colors = listOf(Color(0xFF0F172A), Color(0xFF1E3A8A), Color(0xFF3B82F6)),
+                start = Offset(doorCenter.x - w * 0.22f, doorCenter.y - h * 0.22f),
+                end = Offset(doorCenter.x + w * 0.22f, doorCenter.y + h * 0.22f)
+            ),
+            radius = w * 0.22f,
+            center = doorCenter
+        )
+
+        // Glass Highlights
+        drawCircle(
+            color = Color.White.copy(alpha = 0.35f),
+            radius = w * 0.08f,
+            center = Offset(doorCenter.x - w * 0.08f, doorCenter.y - h * 0.08f)
+        )
+
+        // Bottom Pedestal Line
+        drawLine(
+            color = Color(0xFF94A3B8),
+            start = Offset(w * 0.20f, h * 0.88f),
+            end = Offset(w * 0.92f, h * 0.83f),
+            strokeWidth = w * 0.03f
+        )
+    }
+}
+
+/**
+ * Mid Promo Banner Slider (Sub-Banner matching Image 2, above Express Delivery)
+ */
+@Composable
+fun MidBannerSlider(
+    vm: ApnaDhobiViewModel,
+    onPromoClick: (String) -> Unit
+) {
+    val midBanners by vm.midBannersState.collectAsState()
+    var activePage by remember { mutableStateOf(0) }
+
+    LaunchedEffect(midBanners) {
+        if (midBanners.isEmpty()) return@LaunchedEffect
+        while (true) {
+            delay(4000)
+            activePage = (activePage + 1) % midBanners.size
+        }
+    }
+
+    if (midBanners.isEmpty()) return
+
+    val safeIndex = activePage.coerceIn(0, (midBanners.size - 1).coerceAtLeast(0))
+    val banner = midBanners[safeIndex]
+
+    // Parse hex colors or default to brand orange gradient
+    fun parseHex(hex: String, fallback: Color): Color {
+        return try {
+            val clean = hex.trim().removePrefix("#").removePrefix("0x").removePrefix("0X")
+            val fullHex = when (clean.length) {
+                6 -> "FF$clean"
+                8 -> clean
+                else -> "FFFF6B00"
+            }
+            Color(fullHex.toLong(16))
+        } catch (e: Exception) {
+            fallback
+        }
+    }
+
+    val bannerColors = if (!banner.colors.isNullOrEmpty()) {
+        banner.colors.mapIndexed { idx, col ->
+            parseHex(col, if (idx == 0) SaffronOrange else Color(0xFFFF8C00))
+        }
+    } else {
+        listOf(SaffronOrange, Color(0xFFFF8C00))
+    }
+
+    val rawImg = banner.imageUrl?.takeIf { it.isNotBlank() }
+        ?: banner.mediaUrl?.takeIf { it.isNotBlank() }
+
+    val resolvedImgUrl = rawImg?.let { url ->
+        when {
+            url.startsWith("http://") || url.startsWith("https://") -> url
+            url.startsWith("/") -> "http://10.0.2.2:3000$url"
+            else -> "http://10.0.2.2:3000/$url"
+        }
+    }
+
+    val titleText = banner.title?.takeIf { it.isNotBlank() }
+        ?: "Laundry Made Easy , Get 50% OFF On Wash & Fold Today!"
+    val codeText = banner.code?.takeIf { it.isNotBlank() }
+        ?: banner.subtitle?.takeIf { it.isNotBlank() }
+        ?: "WASH50"
+    val ctaText = banner.ctaText?.takeIf { it.isNotBlank() } ?: "Book Now"
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onPromoClick(banner.redirectUrl ?: banner.code ?: "") },
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(2.5.dp)
+    ) {
+        Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.horizontalGradient(bannerColors)
+                )
+                .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
-            banners.indices.forEach { index ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Left content section
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = titleText,
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        lineHeight = 17.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = if (codeText.startsWith("Use code", ignoreCase = true)) codeText else "Use code: $codeText",
+                        color = Color.White.copy(alpha = 0.95f),
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.White,
+                        shadowElevation = 1.dp,
+                        modifier = Modifier.clickable { onPromoClick(banner.redirectUrl ?: banner.code ?: "") }
+                    ) {
+                        Text(
+                            text = ctaText,
+                            color = Charcoal,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                // Right Image / Appliance graphic section
                 Box(
                     modifier = Modifier
-                        .size(if (index == activePage) 8.dp else 6.dp)
-                        .background(
-                            color = if (index == activePage) Color.White else Color.White.copy(alpha = 0.5f),
-                            shape = CircleShape
+                        .size(88.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (resolvedImgUrl != null && !resolvedImgUrl.contains("photo-1626806787461")) {
+                        ApnaNetworkImage(
+                            url = resolvedImgUrl,
+                            contentDescription = banner.title,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(RoundedCornerShape(10.dp)),
+                            contentScale = ContentScale.Crop
                         )
-                )
+                    } else {
+                        StylizedWashingApplianceGraphic(
+                            modifier = Modifier.size(82.dp)
+                        )
+                    }
+                }
+            }
+
+            // Sub-banner slider dots
+            if (midBanners.size > 1) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 4.dp, bottom = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    midBanners.indices.forEach { index ->
+                        Box(
+                            modifier = Modifier
+                                .size(if (index == safeIndex) 6.dp else 4.dp)
+                                .background(
+                                    color = if (index == safeIndex) Color.White else Color.White.copy(alpha = 0.45f),
+                                    shape = CircleShape
+                                )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Footer Promo Banner Slider (Bottom banner matching app themes)
+ */
+@Composable
+fun FooterBannerSlider(
+    vm: ApnaDhobiViewModel,
+    onPromoClick: (String) -> Unit
+) {
+    val footerBanners by vm.footerBannersState.collectAsState()
+    var activePage by remember { mutableStateOf(0) }
+
+    LaunchedEffect(footerBanners) {
+        if (footerBanners.isEmpty()) return@LaunchedEffect
+        while (true) {
+            delay(5000)
+            activePage = (activePage + 1) % footerBanners.size
+        }
+    }
+
+    if (footerBanners.isEmpty()) return
+
+    val safeIndex = activePage.coerceIn(0, (footerBanners.size - 1).coerceAtLeast(0))
+    val banner = footerBanners[safeIndex]
+
+    val bannerColors = listOf(Color(0xFF1E293B), Color(0xFF0F172A))
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clickable { onPromoClick(banner.redirectUrl ?: banner.code ?: "") },
+        shape = RoundedCornerShape(14.dp),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.horizontalGradient(bannerColors))
+                .padding(horizontal = 14.dp, vertical = 10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    modifier = Modifier.size(34.dp),
+                    shape = CircleShape,
+                    color = SaffronOrange.copy(alpha = 0.2f)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text("🎁", fontSize = 16.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = banner.title ?: "Special Member Offer",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = banner.subtitle ?: "Exclusive discounts on regular laundry",
+                        fontSize = 10.5.sp,
+                        color = Color.White.copy(alpha = 0.85f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = SaffronOrange,
+                    modifier = Modifier.clickable { onPromoClick(banner.redirectUrl ?: banner.code ?: "") }
+                ) {
+                    Text(
+                        text = banner.ctaText ?: "Claim",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
             }
         }
     }

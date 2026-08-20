@@ -18,14 +18,44 @@ data class Vendor(
     val startingPrice: Int,
     val bannerColorHex: String,
     val logoText: String,
-    val isOpen: Boolean = true
+    val isOpen: Boolean = true,
+    val imageUrl: String? = null,
+    val address: String = "1012 Ocean Avenue, Connaught Place, New Delhi",
+    val categoryTag: String = "Laundry",
+    val ratingCount: Int = 365,
+    val providerName: String = "Jenny Wilson",
+    val providerRole: String = "Service Provider & Specialist",
+    val providerPhone: String = "+91 98765 43210",
+    val services: List<String> = listOf("Wash & Fold", "Dry Cleaning", "Carpet Washing", "Wash & Iron", "Free Pickup", "24h Delivery"),
+    val galleryImages: List<String> = listOf(
+        "https://images.unsplash.com/photo-1545173168-9f1947eebb7f?w=600&q=80",
+        "https://images.unsplash.com/photo-1517677208171-0bc6725a3e60?w=600&q=80",
+        "https://images.unsplash.com/photo-1582735689369-4fe89db7114c?w=600&q=80",
+        "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=600&q=80"
+    )
+)
+
+data class VendorReview(
+    val id: String,
+    val vendorId: String,
+    val author: String,
+    val rating: Double,
+    val comment: String,
+    val date: String = "Today",
+    val verified: Boolean = true
 )
 
 data class ServiceCategory(
     val id: String,
     val name: String,
-    val colorHex: String,
-    val iconName: String
+    val colorHex: String = "#2563EB",
+    val iconName: String = "LocalLaundryService",
+    val imageUrl: String? = null,
+    val description: String? = null,
+    val turnaroundTime: String? = null,
+    val startingPrice: String? = null,
+    val popularTag: String? = null,
+    val displayOrder: Int = 0
 )
 
 data class LaundryProduct(
@@ -35,7 +65,8 @@ data class LaundryProduct(
     val originalPrice: Double,
     val discountPrice: Double,
     val deliveryEstimate: String,
-    val popularBadge: String? = null
+    val popularBadge: String? = null,
+    val imageUrl: String? = null
 )
 
 class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
@@ -184,11 +215,26 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
         return try {
             val response = catalogApi.getCategories()
             if (response.isSuccessful) {
-                response.body()?.map { 
-                    ServiceCategory(it.id, it.name, it.colorHex ?: "RoyalBlue", it.iconName ?: "Check")
+                response.body()?.filter { it.isActive != false }?.sortedBy { it.displayOrder ?: 0 }?.map { 
+                    ServiceCategory(
+                        id = it.id,
+                        name = it.name,
+                        colorHex = it.colorHex ?: "#2563EB",
+                        iconName = it.iconName ?: "LocalLaundryService",
+                        imageUrl = it.imageUrl,
+                        description = it.description,
+                        turnaroundTime = it.turnaroundTime,
+                        startingPrice = it.startingPrice,
+                        popularTag = it.popularTag,
+                        displayOrder = it.displayOrder ?: 0
+                    )
                 } ?: emptyList()
-            } else emptyList()
+            } else {
+                Log.e("ApnaDhobiRepository", "fetchCategories response error: ${response.code()}")
+                emptyList()
+            }
         } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "fetchCategories network error: ${e.message}")
             emptyList()
         }
     }
@@ -198,7 +244,21 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
             val response = catalogApi.getVendors()
             if (response.isSuccessful) {
                 response.body()?.map { 
-                    Vendor(it.id, it.name, it.description ?: "", it.rating, 1.2, 45, 49, it.bannerColor ?: "0xFF0D47A1", it.logoText ?: "AD")
+                    Vendor(
+                        id = it.id,
+                        name = it.name,
+                        description = it.description ?: "Express laundry, ironing & quick fabric care",
+                        rating = it.rating,
+                        distanceKm = 1.2,
+                        deliveryTimeMins = 45,
+                        startingPrice = 49,
+                        bannerColorHex = it.bannerColor ?: "0xFF0D47A1",
+                        logoText = it.logoText ?: it.name.take(3).uppercase(),
+                        isOpen = it.isOpen,
+                        imageUrl = it.imageUrl,
+                        address = it.address.ifBlank { "1012 Ocean Avenue, Sector 4, New Delhi" },
+                        categoryTag = it.categoryTag ?: "Laundry"
+                    )
                 } ?: emptyList()
             } else emptyList()
         } catch (e: Exception) {
@@ -211,7 +271,7 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
             val response = catalogApi.getServices(categoryId, vendorId)
             if (response.isSuccessful) {
                 response.body()?.map { 
-                    LaundryProduct(it.id, it.name, it.categoryId, it.originalPrice, it.discountPrice, it.deliveryEstimate ?: "Same Day", it.popularBadge)
+                    LaundryProduct(it.id, it.name, it.categoryId, it.originalPrice, it.discountPrice, it.deliveryEstimate ?: "Same Day", it.popularBadge, it.imageUrl)
                 } ?: emptyList()
             } else emptyList()
         } catch (e: Exception) {
@@ -254,8 +314,16 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
     suspend fun fetchBanners(): List<BannerDto> {
         return try {
             val response = catalogApi.getBanners()
-            if (response.isSuccessful) response.body() ?: emptyList() else emptyList()
+            if (response.isSuccessful) {
+                val list = response.body()?.filter { it.isActive } ?: emptyList()
+                Log.d("ApnaDhobiRepository", "fetchBanners fetched ${list.size} active banners from backend")
+                list
+            } else {
+                Log.e("ApnaDhobiRepository", "fetchBanners failed with code: ${response.code()}")
+                emptyList()
+            }
         } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "fetchBanners network error: ${e.message}")
             emptyList()
         }
     }
@@ -547,107 +615,139 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
 
     // Visual Mock Data sources mapping Indian premium aesthetics
     val serviceCategories = listOf(
-        ServiceCategory("laundry", "Laundry", "RoyalBlue", "LocalLaundryService"),
-        ServiceCategory("dry_cleaning", "Dry Cleaning", "SaffronOrange", "DryCleaning"),
-        ServiceCategory("ironing", "Ironing", "RoyalBlueLight", "Iron"),
-        ServiceCategory("shoe_cleaning", "Shoe Cleaning", "GoldPremium", "CleaningServices"),
-        ServiceCategory("carpet_cleaning", "Carpet Cleaning", "GreenSuccess", "RollerShades"),
-        ServiceCategory("blanket_wash", "Blanket Wash", "SaffronOrangeLight", "AcUnit"),
-        ServiceCategory("wedding_wear", "Wedding Wear", "Coral", "Star"),
-        ServiceCategory("premium_care", "Premium Care", "Charcoal", "Favorite")
+        ServiceCategory("laundry", "Laundry", "SaffronOrange", "WashingMachine", description = "Express Wash & Fold • Doorstep Pickup"),
+        ServiceCategory("dry_cleaning", "Dry Cleaning", "SaffronOrange", "DryCleaning", description = "Laundering at: Apna Dhobi Express"),
+        ServiceCategory("ironing", "Ironing", "SaffronOrange", "Iron", description = "Crisp Wrinkle-Free Steam Pressing"),
+        ServiceCategory("shoe_cleaning", "Shoe Cleaning", "SaffronOrange", "CleaningServices", description = "Deep Cleaning, Polish & Deodorization"),
+        ServiceCategory("carpet_cleaning", "Carpet Clean", "SaffronOrange", "RollerShades", description = "Deep Vacuuming & Shampooing"),
+        ServiceCategory("blanket_wash", "Blanket Wash", "SaffronOrange", "AcUnit", description = "Hygienic Sanitization & Soft Wash"),
+        ServiceCategory("wedding_wear", "Wedding Wear", "SaffronOrange", "Star", description = "Royal Designer & Heavy Fabric Care"),
+        ServiceCategory("premium_care", "Premium Care", "SaffronOrange", "Favorite", description = "Delicate Silk & Wool Hydro-Clean")
     )
 
     val vendors = listOf(
         Vendor(
             id = "vendor_1",
             name = "Apna Dhobi Express",
-            description = "Express laundry, ironing & quick fabric care",
+            description = "Express laundry, ironing & quick fabric care. We use eco-friendly detergents and advanced German washing technology for premium fabric care.",
             rating = 4.8,
+            ratingCount = 365,
             distanceKm = 1.2,
             deliveryTimeMins = 45,
             startingPrice = 49,
             bannerColorHex = "0xFF0D47A1",
             logoText = "ADE",
-            isOpen = true
+            isOpen = true,
+            imageUrl = "https://images.unsplash.com/photo-1545173168-9f1947eebb7f?w=600&q=80",
+            address = "1012 Ocean Avenue, Sector 4, New Delhi",
+            categoryTag = "Laundry",
+            providerName = "Jenny Wilson",
+            providerRole = "Service Provider & Specialist",
+            providerPhone = "+91 98765 43210",
+            services = listOf("Wash & Fold", "Dry Cleaning", "Carpet Washing", "Wash & Iron", "Free Pickup", "24h Delivery")
         ),
         Vendor(
             id = "vendor_2",
             name = "Royal Dry Cleaners & Dyers",
-            description = "Premium dry cleaning for wedding wear & designer wear",
+            description = "Premium dry cleaning for wedding wear, designer suits & heavy fabrics with eco-friendly hydro-carbon technology.",
             rating = 4.6,
+            ratingCount = 210,
             distanceKm = 2.5,
             deliveryTimeMins = 120,
             startingPrice = 99,
             bannerColorHex = "0xFFFF6B00",
             logoText = "RDC",
-            isOpen = true
+            isOpen = true,
+            imageUrl = "https://images.unsplash.com/photo-1517677208171-0bc6725a3e60?w=600&q=80",
+            address = "Shop 14, Royal Market, Connaught Place, New Delhi",
+            categoryTag = "Dry Cleaning",
+            providerName = "Rajesh Sharma",
+            providerRole = "Master Dry Cleaner",
+            providerPhone = "+91 98112 34567",
+            services = listOf("Dry Cleaning", "Suit Steam Iron", "Wedding Wear Care", "Leather Spa", "Free Pickup", "24h Delivery")
         ),
         Vendor(
             id = "vendor_3",
             name = "Smart Ironing Hub",
-            description = "Crisp steam ironing with free hangers & delivery",
+            description = "Crisp steam ironing with vacuum suction tables, wrinkle-free packaging and doorstep hanger delivery.",
             rating = 4.9,
+            ratingCount = 180,
             distanceKm = 0.8,
             deliveryTimeMins = 30,
             startingPrice = 15,
             bannerColorHex = "0xFF00A86B",
             logoText = "SIH",
-            isOpen = true
+            isOpen = true,
+            imageUrl = "https://images.unsplash.com/photo-1582735689369-4fe89db7114c?w=600&q=80",
+            address = "Plot 22, Hauz Khas, New Delhi",
+            categoryTag = "Ironing",
+            providerName = "Amit Verma",
+            providerRole = "Steam Press Specialist",
+            providerPhone = "+91 99887 76655",
+            services = listOf("Steam Ironing", "Wash & Fold", "Curtain Cleaning", "Express 2h", "Free Pickup", "24h Delivery")
         ),
         Vendor(
             id = "vendor_4",
             name = "The Elite Shoe & Blanket Care",
-            description = "Intricate deep clean for blankets, leather shoes & jackets",
+            description = "Intricate deep clean spa for blankets, sneakers, leather shoes, boots & jackets with antimicrobial sanitization.",
             rating = 4.7,
+            ratingCount = 145,
             distanceKm = 3.1,
             deliveryTimeMins = 180,
             startingPrice = 199,
             bannerColorHex = "0xFFF4B400",
             logoText = "ESC",
-            isOpen = true
+            isOpen = true,
+            imageUrl = "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=600&q=80",
+            address = "B-8, DLF Galleria, Cyber City, Gurugram",
+            categoryTag = "Shoe Cleaning",
+            providerName = "Pooja Malhotra",
+            providerRole = "Footwear & Quilt Care Lead",
+            providerPhone = "+91 98711 22334",
+            services = listOf("Shoe Spa", "Blanket Wash", "Quilt Sanitization", "Jacket Care", "Free Pickup", "24h Delivery")
         )
     )
 
     val products = listOf(
         // Laundry Service (laundry)
-        LaundryProduct("prod_l1", "Men's Shirt Wash & Fold", "laundry", 60.0, 49.0, "Same Day", "Bestseller"),
-        LaundryProduct("prod_l2", "Men's T-Shirt Wash", "laundry", 50.0, 39.0, "Same Day"),
-        LaundryProduct("prod_l3", "Women's Kurti Wash", "laundry", 80.0, 59.0, "Same Day", "Hot Deal"),
-        LaundryProduct("prod_l4", "Jeans Laundry / Clean", "laundry", 90.0, 75.0, "1 Day"),
-        LaundryProduct("prod_l5", "Bed Sheet Double Laundry", "laundry", 150.0, 119.0, "1 Day"),
+        LaundryProduct("prod_l1", "Men's Shirt Wash & Fold", "laundry", 60.0, 49.0, "Delivery: Same Day", "BESTSELLER", "https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=500&q=80"),
+        LaundryProduct("prod_l2", "Men's T-Shirt Wash", "laundry", 50.0, 39.0, "Delivery: Same Day", "POPULAR", "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=500&q=80"),
+        LaundryProduct("prod_l3", "Women's Kurti Wash", "laundry", 80.0, 59.0, "Delivery: Same Day", "HOT DEAL", "https://images.unsplash.com/photo-1617627143750-d86bc21e42bb?w=500&q=80"),
+        LaundryProduct("prod_l4", "Jeans Laundry / Clean", "laundry", 90.0, 75.0, "Delivery: 1 Day", null, "https://images.unsplash.com/photo-1542272604-780c96856592?w=500&q=80"),
+        LaundryProduct("prod_l5", "Bed Sheet Double Laundry", "laundry", 150.0, 119.0, "Delivery: 1 Day", null, "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=500&q=80"),
 
-        // Dry Cleaning (dry_cleaning)
-        LaundryProduct("prod_dc1", "Premium Designer Kurta Dry Clean", "dry_cleaning", 199.0, 149.0, "2 Days", "Essential"),
-        LaundryProduct("prod_dc2", "Heavy Wedding Saree Dry Clean", "dry_cleaning", 399.0, 299.0, "3 Days", "Premium Choice"),
-        LaundryProduct("prod_dc3", "Men's Suit 2-Piece Dry Clean", "dry_cleaning", 499.0, 399.0, "2 Days", "Popular"),
-        LaundryProduct("prod_dc4", "Winter Leather Jacket Care", "dry_cleaning", 599.0, 449.0, "3 Days"),
-        LaundryProduct("prod_dc5", "Double Bed Blanket Dry Clean", "dry_cleaning", 350.0, 279.0, "2 Days"),
+        // Dry Cleaning (dry_cleaning) - MATCHING IMAGE 1 EXACTLY
+        LaundryProduct("prod_dc2", "Heavy Wedding Saree Dry Clean", "dry_cleaning", 399.0, 299.0, "Delivery: 3 Days", "PREMIUM CHOICE", "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=500&q=80"),
+        LaundryProduct("prod_dc3", "Men's Suit 2-Piece Dry Clean", "dry_cleaning", 499.0, 399.0, "Delivery: 2 Days", "POPULAR", "https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=500&q=80"),
+        LaundryProduct("prod_dc1", "Premium Designer Kurta Dry Clean", "dry_cleaning", 199.0, 149.0, "Delivery: 2 Days", "ESSENTIAL", "https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=500&q=80"),
+        LaundryProduct("prod_dc4", "Winter Leather Jacket Care", "dry_cleaning", 599.0, 449.0, "Delivery: 3 Days", "LUXE", "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=500&q=80"),
+        LaundryProduct("prod_dc5", "Double Bed Blanket Dry Clean", "dry_cleaning", 350.0, 279.0, "Delivery: 2 Days", null, "https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?w=500&q=80"),
 
         // Ironing (ironing)
-        LaundryProduct("prod_i1", "Men's Casual Shirt Steam Iron", "ironing", 20.0, 14.0, "30 Mins", "Lightning Fast"),
-        LaundryProduct("prod_i2", "Formal Trousers Crisp Press", "ironing", 25.0, 18.0, "45 Mins"),
-        LaundryProduct("prod_i3", "Premium Silk Saree Delicate Press", "ironing", 80.0, 59.0, "2 Hours", "Handled with Care"),
-        LaundryProduct("prod_i4", "Kids School Uniform Crisp Press", "ironing", 20.0, 12.0, "1 Hour"),
+        LaundryProduct("prod_i1", "Men's Casual Shirt Steam Iron", "ironing", 20.0, 14.0, "Delivery: 30 Mins", "LIGHTNING FAST", "https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?w=500&q=80"),
+        LaundryProduct("prod_i2", "Formal Trousers Crisp Press", "ironing", 25.0, 18.0, "Delivery: 45 Mins", null, "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=500&q=80"),
+        LaundryProduct("prod_i3", "Premium Silk Saree Delicate Press", "ironing", 80.0, 59.0, "Delivery: 2 Hours", "HANDLED WITH CARE", "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=500&q=80"),
+        LaundryProduct("prod_i4", "Kids School Uniform Crisp Press", "ironing", 20.0, 12.0, "Delivery: 1 Hour", null, "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=500&q=80"),
 
-        // Shoe Cleaning
-        LaundryProduct("prod_s1", "Sports Sneaker Deep Clean & Polish", "shoe_cleaning", 299.0, 199.0, "1 Day", "Like New"),
-        LaundryProduct("prod_s2", "Formal Leather Shoe Wax Shine", "shoe_cleaning", 199.0, 149.0, "Same Day"),
+        // Shoe Cleaning (shoe_cleaning)
+        LaundryProduct("prod_s1", "Sports Sneaker Deep Clean & Polish", "shoe_cleaning", 299.0, 199.0, "Delivery: 1 Day", "LIKE NEW", "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=500&q=80"),
+        LaundryProduct("prod_s2", "Formal Leather Shoe Wax Shine", "shoe_cleaning", 199.0, 149.0, "Delivery: Same Day", "PREMIUM SHINE", "https://images.unsplash.com/photo-1614252369475-531eba835eb1?w=500&q=80"),
 
         // Carpet Cleaning (carpet_cleaning)
-        LaundryProduct("prod_c1", "Premium Woolen Persian Carpet Deep Clean", "carpet_cleaning", 1099.0, 899.0, "3 Days", "Deluxe"),
-        LaundryProduct("prod_c2", "Office Synthetic Carpet Shampooing", "carpet_cleaning", 699.0, 499.0, "2 Days"),
+        LaundryProduct("prod_c1", "Premium Woolen Persian Carpet Deep Clean", "carpet_cleaning", 1099.0, 899.0, "Delivery: 3 Days", "DELUXE", "https://images.unsplash.com/photo-1600121848594-d8644e57abab?w=500&q=80"),
+        LaundryProduct("prod_c2", "Office Synthetic Carpet Shampooing", "carpet_cleaning", 699.0, 499.0, "Delivery: 2 Days", null, "https://images.unsplash.com/photo-1582735689369-4fe89db7114c?w=500&q=80"),
 
         // Blanket Wash (blanket_wash)
-        LaundryProduct("prod_b1", "Double Bed Mink Blanket Sanitization", "blanket_wash", 399.0, 299.0, "2 Days", "Cozy Wash"),
-        LaundryProduct("prod_b2", "Single Bed Fleece Blanket Eco Wash", "blanket_wash", 250.0, 199.0, "1 Day"),
+        LaundryProduct("prod_b1", "Double Bed Mink Blanket Sanitization", "blanket_wash", 399.0, 299.0, "Delivery: 2 Days", "COZY WASH", "https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?w=500&q=80"),
+        LaundryProduct("prod_b2", "Single Bed Fleece Blanket Eco Wash", "blanket_wash", 250.0, 199.0, "Delivery: 1 Day", null, "https://images.unsplash.com/photo-1522771739844-6a9f6d5f14af?w=500&q=80"),
 
         // Wedding Wear (wedding_wear)
-        LaundryProduct("prod_w1", "Heavy Designer Bridal Lehenga Dry Clean", "wedding_wear", 1999.0, 1499.0, "4 Days", "Royal Care"),
-        LaundryProduct("prod_w2", "Groom Embroidered Sherwani Dry Clean", "wedding_wear", 1599.0, 1199.0, "3 Days"),
+        LaundryProduct("prod_w1", "Heavy Designer Bridal Lehenga Dry Clean", "wedding_wear", 1999.0, 1499.0, "Delivery: 4 Days", "ROYAL CARE", "https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=500&q=80"),
+        LaundryProduct("prod_w2", "Groom Embroidered Sherwani Dry Clean", "wedding_wear", 1599.0, 1199.0, "Delivery: 3 Days", "SPECIAL", "https://images.unsplash.com/photo-1594938298603-c8148c4dae35?w=500&q=80"),
 
         // Premium Care (premium_care)
-        LaundryProduct("prod_jc1", "Pure Silk Saree Delicate Hydro-Clean", "premium_care", 500.0, 399.0, "2 Days", "Petal Soft"),
-        LaundryProduct("prod_jc2", "Premium Cashmere Sweater Hand Wash", "premium_care", 350.0, 249.0, "2 Days")
+        LaundryProduct("prod_jc1", "Pure Silk Saree Delicate Hydro-Clean", "premium_care", 500.0, 399.0, "Delivery: 2 Days", "PETAL SOFT", "https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=500&q=80"),
+        LaundryProduct("prod_jc2", "Premium Cashmere Sweater Hand Wash", "premium_care", 350.0, 249.0, "Delivery: 2 Days", null, "https://images.unsplash.com/photo-1434389677669-e08b4cac3105?w=500&q=80")
     )
 
     fun getProductsByCategoryId(catId: String): List<LaundryProduct> {

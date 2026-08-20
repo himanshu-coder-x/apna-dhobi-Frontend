@@ -10,7 +10,11 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
-    private const val BASE_URL = "https://apna-dhobi-backend.onrender.com/api/v1/"
+    // 10.0.2.2 connects directly to host PC localhost:3000 from Android Emulator
+    const val LOCAL_EMULATOR_URL = "http://10.0.2.2:3000/api/v1/"
+    const val REMOTE_PROD_URL = "https://apna-dhobi-backend.onrender.com/api/v1/"
+    
+    var BASE_URL: String = LOCAL_EMULATOR_URL
     private var authToken: String? = null
 
     fun setAuthToken(token: String?) {

@@ -12,15 +12,24 @@ data class VendorDto(
     @Json(name = "address") val address: String,
     @Json(name = "isOpen") val isOpen: Boolean,
     @Json(name = "bannerColor") val bannerColor: String?,
-    @Json(name = "logoText") val logoText: String?
+    @Json(name = "logoText") val logoText: String?,
+    @Json(name = "imageUrl") val imageUrl: String? = null,
+    @Json(name = "categoryTag") val categoryTag: String? = null
 )
 
 @JsonClass(generateAdapter = true)
 data class CategoryDto(
     @Json(name = "id") val id: String,
     @Json(name = "name") val name: String,
-    @Json(name = "colorHex") val colorHex: String?,
-    @Json(name = "iconName") val iconName: String?
+    @Json(name = "colorHex") val colorHex: String? = null,
+    @Json(name = "iconName") val iconName: String? = null,
+    @Json(name = "imageUrl") val imageUrl: String? = null,
+    @Json(name = "description") val description: String? = null,
+    @Json(name = "turnaroundTime") val turnaroundTime: String? = null,
+    @Json(name = "startingPrice") val startingPrice: String? = null,
+    @Json(name = "popularTag") val popularTag: String? = null,
+    @Json(name = "displayOrder") val displayOrder: Int? = 0,
+    @Json(name = "isActive") val isActive: Boolean? = true
 )
 
 @JsonClass(generateAdapter = true)
@@ -31,7 +40,8 @@ data class ServiceDto(
     @Json(name = "originalPrice") val originalPrice: Double,
     @Json(name = "discountPrice") val discountPrice: Double,
     @Json(name = "deliveryEstimate") val deliveryEstimate: String?,
-    @Json(name = "popularBadge") val popularBadge: String?
+    @Json(name = "popularBadge") val popularBadge: String?,
+    @Json(name = "imageUrl") val imageUrl: String? = null
 )
 
 @JsonClass(generateAdapter = true)

@@ -16,5 +16,9 @@ data class BannerDto(
     @Json(name = "code") val code: String? = "",
     @Json(name = "colors") val colors: List<String>? = emptyList(),
     @Json(name = "badge") val badge: String? = "",
+    @Json(name = "showTextOverlay") val showTextOverlay: Boolean? = true,
+    @Json(name = "ctaText") val ctaText: String? = "",
+    @Json(name = "position") val position: String? = "TOP",
+    @Json(name = "placement") val placement: String? = "top",
     @Json(name = "isActive") val isActive: Boolean = true
 )

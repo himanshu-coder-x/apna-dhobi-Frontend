@@ -60,8 +60,8 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     // Global Loading State
     var isGlobalLoading = MutableStateFlow(false)
 
-    // Current Active Screen
-    private val _currentScreen = MutableStateFlow<ApnaDhobiScreen>(ApnaDhobiScreen.Splash)
+    // Current Active Screen (Default to Home Dashboard for instant UI rendering)
+    private val _currentScreen = MutableStateFlow<ApnaDhobiScreen>(ApnaDhobiScreen.HomeFrame)
     val currentScreen: StateFlow<ApnaDhobiScreen> = _currentScreen.asStateFlow()
 
     // Navigation Stack for basic back pressed actions
@@ -76,7 +76,7 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     var loginOtp = MutableStateFlow("")
     var isOtpSent = MutableStateFlow(false)
     var otpCountdown = MutableStateFlow(0) // Countdown in seconds
-    var isLoggedIn = MutableStateFlow(false)
+    var isLoggedIn = MutableStateFlow(true)
     var isHindi = MutableStateFlow(false)
     var userReferralCode = MutableStateFlow("")
     var referralAppliedMessage = MutableStateFlow("")
@@ -259,6 +259,8 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
                 code = "DHOBI20",
                 colors = listOf("0xFF0D47A1", "0xFFFF6B00"),
                 badge = "20% OFF",
+                position = "TOP",
+                placement = "top",
                 isActive = true
             ),
             BannerDto(
@@ -268,6 +270,8 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
                 code = "FREESHIP",
                 colors = listOf("0xFFFF6B00", "0xFFF4B400"),
                 badge = "FREE",
+                position = "TOP",
+                placement = "top",
                 isActive = true
             ),
             BannerDto(
@@ -277,6 +281,57 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
                 code = "SAMEDAY",
                 colors = listOf("0xFF2C2C2C", "0xFF1E88E5"),
                 badge = "EXPRESS",
+                position = "TOP",
+                placement = "top",
+                isActive = true
+            )
+        )
+    )
+
+    val midBannersState = MutableStateFlow<List<BannerDto>>(
+        listOf(
+            BannerDto(
+                id = "mid_1",
+                title = "Laundry Made Easy , Get 50% OFF On Wash & Fold Today!",
+                subtitle = "Use code: WASH50",
+                code = "WASH50",
+                badge = "50% OFF",
+                ctaText = "Book Now",
+                colors = listOf("0xFFFF6B00", "0xFFFF8C00"),
+                redirectUrl = "/services/wash-fold",
+                position = "MID",
+                placement = "mid",
+                isActive = true
+            ),
+            BannerDto(
+                id = "mid_2",
+                title = "Designer Silk & Woolen Care - Flat 40% OFF",
+                subtitle = "Use code: SILK40",
+                code = "SILK40",
+                badge = "40% OFF",
+                ctaText = "Book Now",
+                colors = listOf("0xFF0D47A1", "0xFF1E88E5"),
+                redirectUrl = "/services/dry-clean",
+                position = "MID",
+                placement = "mid",
+                isActive = true
+            )
+        )
+    )
+
+    val footerBannersState = MutableStateFlow<List<BannerDto>>(
+        listOf(
+            BannerDto(
+                id = "footer_1",
+                title = "Premium Steam Ironing Express",
+                subtitle = "Flat ₹100 Cashback on your first 5 Ironing batches",
+                code = "IRON100",
+                badge = "CASHBACK",
+                ctaText = "Explore Now",
+                colors = listOf("0xFF2C2C2C", "0xFF1E88E5"),
+                redirectUrl = "/services/ironing",
+                position = "FOOTER",
+                placement = "footer",
                 isActive = true
             )
         )
@@ -387,8 +442,68 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     // Notifications Feed
     val notifications = MutableStateFlow(listOf(
         "Welcome back to Apna Dhobi! Add ₹500 into your wallet for 20% extra credits today! 🎉",
-        "Offer: DHOBI20 is active this week on all washing & dry cleaning services."
+        "Offer: DHOBI20 is active this week on all washing & dry cleaning services.",
+        "Express Pickup: Your pickup slot for tomorrow 10:00 AM is available! ⚡",
+        "Order #ORD-7819 was successfully sanitized and ironed."
     ))
+
+    fun clearNotifications() {
+        notifications.value = emptyList()
+    }
+
+    // Favorites Management
+    val favoriteVendorIds = MutableStateFlow<Set<String>>(setOf("vendor_1"))
+
+    fun toggleFavoriteVendor(vendorId: String) {
+        val current = favoriteVendorIds.value.toMutableSet()
+        if (current.contains(vendorId)) {
+            current.remove(vendorId)
+            pushSimulatedNotification("Removed store from favorites")
+        } else {
+            current.add(vendorId)
+            pushSimulatedNotification("Added store to your favorites ❤️")
+        }
+        favoriteVendorIds.value = current
+    }
+
+    // Real-Time Vendor Reviews
+    val vendorReviewsState = MutableStateFlow<Map<String, List<com.example.data.VendorReview>>>(
+        mapOf(
+            "vendor_1" to listOf(
+                com.example.data.VendorReview("r1", "vendor_1", "Rahul Sharma", 5.0, "Super fast delivery and clean, crisp ironing! Clothes smell amazingly fresh.", "Yesterday"),
+                com.example.data.VendorReview("r2", "vendor_1", "Pooja Malhotra", 4.8, "Dry cleaned my silk dress very carefully. No color fading whatsoever.", "2 days ago"),
+                com.example.data.VendorReview("r3", "vendor_1", "Vikas Mehta", 5.0, "Same day pickup and delivered right on time. Very professional staff.", "4 days ago"),
+                com.example.data.VendorReview("r4", "vendor_1", "Ananya Singh", 4.9, "The packaging on wooden hangers was great! 100% recommended.", "1 week ago")
+            ),
+            "vendor_2" to listOf(
+                com.example.data.VendorReview("r5", "vendor_2", "Sameer Kapoor", 4.7, "Excellent dry cleaning for heavy wedding sherwani.", "3 days ago"),
+                com.example.data.VendorReview("r6", "vendor_2", "Divya Nair", 4.9, "Best stain removal in town. Removed tough coffee stains completely.", "5 days ago")
+            ),
+            "vendor_3" to listOf(
+                com.example.data.VendorReview("r7", "vendor_3", "Amit Verma", 5.0, "Crisp steam press on all formal shirts. Delivered in 2 hours.", "Yesterday")
+            ),
+            "vendor_4" to listOf(
+                com.example.data.VendorReview("r8", "vendor_4", "Rohan Joshi", 4.8, "My heavy double quilt looks brand new after deep wash!", "2 days ago")
+            )
+        )
+    )
+
+    fun addVendorReview(vendorId: String, author: String, rating: Double, comment: String) {
+        val currentMap = vendorReviewsState.value.toMutableMap()
+        val currentList = currentMap[vendorId]?.toMutableList() ?: mutableListOf()
+        currentList.add(0, com.example.data.VendorReview(
+            id = "r_${System.currentTimeMillis()}",
+            vendorId = vendorId,
+            author = author.ifBlank { "You" },
+            rating = rating,
+            comment = comment,
+            date = "Just now",
+            verified = true
+        ))
+        currentMap[vendorId] = currentList
+        vendorReviewsState.value = currentMap
+        pushSimulatedNotification("Thank you for your review! ⭐")
+    }
 
     // Selected Vendor for Shop View
     var selectedVendorId = MutableStateFlow("vendor_1")
@@ -397,44 +512,51 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), repository.vendors[0])
 
     init {
-        // Pre-insert default database records if empty
-        viewModelScope.launch {
-            val currentAddresses = repository.savedAddresses.first()
-            if (currentAddresses.isEmpty()) {
-                repository.addAddress(SavedAddress(label = "Home", addressLine = "Shanti Kutir, Block 4-B, Connaught Place, New Delhi", isDefault = true))
-                repository.addAddress(SavedAddress(label = "Office", addressLine = "Tech Park Tower A, Sector 62, Noida"))
-            }
-            
-            // Insert initial welcome message in support chat
-            val initialMsgs = repository.chatMessages.first()
-            if (initialMsgs.isEmpty()) {
-                repository.insertChatMessage(SupportMessage(sender = "AI_Assistant", text = "Namaste! Welcome to Apna Dhobi AI Assistant. 🌸 I can assist you with dry cleaning questions, stain removal advice, or booking instructions! Try asking: 'How to clean silk saree' or 'remove oil stain'."))
-            }
+        // Pre-insert default database records if empty on background IO thread
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val currentAddresses = repository.savedAddresses.first()
+                if (currentAddresses.isEmpty()) {
+                    repository.addAddress(SavedAddress(label = "Home", addressLine = "Shanti Kutir, Block 4-B, Connaught Place, New Delhi", isDefault = true))
+                    repository.addAddress(SavedAddress(label = "Office", addressLine = "Tech Park Tower A, Sector 62, Noida"))
+                }
+                
+                // Insert initial welcome message in support chat
+                val initialMsgs = repository.chatMessages.first()
+                if (initialMsgs.isEmpty()) {
+                    repository.insertChatMessage(SupportMessage(sender = "AI_Assistant", text = "Namaste! Welcome to Apna Dhobi AI Assistant. 🌸 I can assist you with dry cleaning questions, stain removal advice, or booking instructions! Try asking: 'How to clean silk saree' or 'remove oil stain'."))
+                }
 
-            // Fetch remote catalog
-            refreshCatalog()
-            refreshWalletRequests()
-            refreshVendorOrders()
-            
-            initSocket()
+                // Fetch remote catalog from local backend
+                refreshCatalog()
+                refreshWalletRequests()
+                refreshVendorOrders()
+                
+                initSocket()
+            } catch (e: Throwable) {
+                Log.e("ApnaDhobiViewModel", "Background init non-fatal error: ${e.message}")
+            }
         }
     }
 
     private fun initSocket() {
         try {
-            socket = IO.socket("https://apna-dhobi-backend.onrender.com")
+            socket = IO.socket("http://10.0.2.2:3000")
             socket?.on(Socket.EVENT_CONNECT) {
-                Log.d("SocketIO", "Connected to server")
+                Log.d("SocketIO", "Connected to local server")
             }
             socket?.on("rider_moved") { args ->
-                val data = args[0] as JSONObject
-                activeDeliveryBoyLat.value = data.getDouble("lat")
-                activeDeliveryBoyLng.value = data.getDouble("lng")
-                // Update ETA via OSRM if needed
+                try {
+                    val data = args[0] as JSONObject
+                    activeDeliveryBoyLat.value = data.getDouble("lat")
+                    activeDeliveryBoyLng.value = data.getDouble("lng")
+                } catch (e: Throwable) {
+                    Log.e("SocketIO", "Error parsing rider location", e)
+                }
             }
             socket?.connect()
-        } catch (e: Exception) {
-            Log.e("SocketIO", "Connection error", e)
+        } catch (e: Throwable) {
+            Log.e("SocketIO", "Socket non-fatal connection error", e)
         }
     }
 
@@ -613,7 +735,11 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
                 startingPrice = 49,
                 bannerColorHex = if (bannerColor.isNotBlank()) bannerColor else "0xFF0D47A1",
                 logoText = cleanLogoText,
-                isOpen = true
+                isOpen = true,
+                imageUrl = bannerPic.takeIf { it.isNotBlank() },
+                address = if (address.isNotBlank()) address else "Connaught Place, New Delhi",
+                providerName = if (ownerName.isNotBlank()) ownerName else "Store Specialist",
+                providerPhone = if (mobile.isNotBlank()) mobile else "+91 98765 43210"
             )
             val currentVendors = vendorsState.value.toMutableList()
             currentVendors.add(0, newVendor)
@@ -719,7 +845,19 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
             try {
                 val remoteBanners = repository.fetchBanners()
                 if (remoteBanners.isNotEmpty()) {
-                    bannersState.value = remoteBanners
+                    val topList = remoteBanners.filter { (it.position?.uppercase() ?: "TOP") == "TOP" }
+                    val midList = remoteBanners.filter { (it.position?.uppercase() ?: "") == "MID" || (it.placement?.lowercase() ?: "") == "mid" || (it.placement?.lowercase() ?: "") == "sub_banner" }
+                    val footerList = remoteBanners.filter { (it.position?.uppercase() ?: "") == "FOOTER" || (it.placement?.lowercase() ?: "") == "footer" }
+
+                    if (topList.isNotEmpty()) {
+                        bannersState.value = topList
+                    }
+                    if (midList.isNotEmpty()) {
+                        midBannersState.value = midList
+                    }
+                    if (footerList.isNotEmpty()) {
+                        footerBannersState.value = footerList
+                    }
                 }
 
                 val remoteCategories = repository.fetchCategories()
@@ -794,6 +932,10 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun selectBottomTab(tab: String) {
+        _activeTab.value = tab
+    }
+
+    fun setActiveTab(tab: String) {
         _activeTab.value = tab
     }
 

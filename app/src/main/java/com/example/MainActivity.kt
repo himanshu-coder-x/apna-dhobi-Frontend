@@ -23,7 +23,10 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -33,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +47,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.CornerRadius
@@ -60,6 +66,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -83,6 +90,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import androidx.compose.ui.layout.ContentScale
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -1512,7 +1520,389 @@ fun LoginScreen(vm: ApnaDhobiViewModel) {
 }
 
 // ==========================================
-// HOME DASHBOARD CONTENT
+// MODERN CATEGORY VISUAL GRAPHICS (MATCHING IMAGE 2)
+// ==========================================
+private fun drawSparkle(scope: DrawScope, center: Offset, size: Float, color: Color) {
+    val path = Path().apply {
+        moveTo(center.x, center.y - size)
+        quadraticBezierTo(center.x, center.y, center.x + size, center.y)
+        quadraticBezierTo(center.x, center.y, center.x, center.y + size)
+        quadraticBezierTo(center.x, center.y, center.x - size, center.y)
+        quadraticBezierTo(center.x, center.y, center.x, center.y - size)
+        close()
+    }
+    scope.drawPath(path, color)
+}
+
+@Composable
+fun WashingMachineIconGraphic(tint: Color = SaffronOrange, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        // Washing machine solid outer body
+        drawRoundRect(
+            color = tint,
+            topLeft = Offset(w * 0.10f, h * 0.06f),
+            size = Size(w * 0.80f, h * 0.88f),
+            cornerRadius = CornerRadius(w * 0.18f, h * 0.18f)
+        )
+
+        // Top control panel separator line
+        drawLine(
+            color = Color.White.copy(alpha = 0.90f),
+            start = Offset(w * 0.18f, h * 0.26f),
+            end = Offset(w * 0.82f, h * 0.26f),
+            strokeWidth = w * 0.04f,
+            cap = StrokeCap.Round
+        )
+
+        // Top right dial button
+        drawCircle(
+            color = Color.White,
+            radius = w * 0.055f,
+            center = Offset(w * 0.72f, h * 0.16f)
+        )
+
+        // Top left detergent drawer indicator
+        drawLine(
+            color = Color.White,
+            start = Offset(w * 0.22f, h * 0.16f),
+            end = Offset(w * 0.44f, h * 0.16f),
+            strokeWidth = w * 0.05f,
+            cap = StrokeCap.Round
+        )
+
+        // Outer glass door circle (thick white ring)
+        drawCircle(
+            color = Color.White,
+            radius = w * 0.24f,
+            center = Offset(w * 0.50f, h * 0.59f),
+            style = Stroke(width = w * 0.065f)
+        )
+
+        // Inner drum water wave/swirl
+        val wavePath = Path().apply {
+            moveTo(w * 0.35f, h * 0.60f)
+            quadraticBezierTo(w * 0.42f, h * 0.52f, w * 0.50f, h * 0.60f)
+            quadraticBezierTo(w * 0.58f, h * 0.68f, w * 0.65f, h * 0.60f)
+        }
+        drawPath(
+            path = wavePath,
+            color = Color.White,
+            style = Stroke(width = w * 0.055f, cap = StrokeCap.Round)
+        )
+    }
+}
+
+@Composable
+fun IronIconGraphic(tint: Color = SaffronOrange, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        // Iron solid body with pointy nose
+        val ironBody = Path().apply {
+            moveTo(w * 0.88f, h * 0.68f)
+            lineTo(w * 0.14f, h * 0.68f)
+            quadraticBezierTo(w * 0.08f, h * 0.68f, w * 0.08f, h * 0.60f)
+            lineTo(w * 0.16f, h * 0.34f)
+            quadraticBezierTo(w * 0.22f, h * 0.26f, w * 0.36f, h * 0.26f)
+            lineTo(w * 0.74f, h * 0.26f)
+            quadraticBezierTo(w * 0.86f, h * 0.28f, w * 0.82f, h * 0.44f)
+            lineTo(w * 0.68f, h * 0.48f)
+            lineTo(w * 0.36f, h * 0.48f)
+            quadraticBezierTo(w * 0.28f, h * 0.48f, w * 0.26f, h * 0.54f)
+            lineTo(w * 0.80f, h * 0.56f)
+            close()
+        }
+        drawPath(path = ironBody, color = tint)
+
+        // Handle inner cut-out window
+        val handleHole = Path().apply {
+            moveTo(w * 0.34f, h * 0.36f)
+            lineTo(w * 0.68f, h * 0.36f)
+            lineTo(w * 0.58f, h * 0.46f)
+            lineTo(w * 0.30f, h * 0.46f)
+            close()
+        }
+        drawPath(path = handleHole, color = Color.White)
+
+        // Bottom Soleplate line
+        drawLine(
+            color = tint,
+            start = Offset(w * 0.10f, h * 0.78f),
+            end = Offset(w * 0.90f, h * 0.78f),
+            strokeWidth = w * 0.065f,
+            cap = StrokeCap.Round
+        )
+
+        // Heat dial knob
+        drawCircle(
+            color = Color.White,
+            radius = w * 0.055f,
+            center = Offset(w * 0.46f, h * 0.58f)
+        )
+    }
+}
+
+@Composable
+fun DryCleanIconGraphic(tint: Color = SaffronOrange, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        // Solid Shirt / Garment Body
+        val shirtPath = Path().apply {
+            moveTo(w * 0.34f, h * 0.14f)
+            lineTo(w * 0.08f, h * 0.28f)
+            lineTo(w * 0.16f, h * 0.46f)
+            lineTo(w * 0.26f, h * 0.40f)
+            lineTo(w * 0.26f, h * 0.88f)
+            lineTo(w * 0.74f, h * 0.88f)
+            lineTo(w * 0.74f, h * 0.40f)
+            lineTo(w * 0.84f, h * 0.46f)
+            lineTo(w * 0.92f, h * 0.28f)
+            lineTo(w * 0.66f, h * 0.14f)
+            quadraticBezierTo(w * 0.50f, h * 0.28f, w * 0.34f, h * 0.14f)
+            close()
+        }
+        drawPath(path = shirtPath, color = tint)
+
+        // Sparkle Star 1 (Top Right)
+        drawSparkle(this, Offset(w * 0.52f, h * 0.42f), w * 0.09f, Color.White)
+
+        // Sparkle Star 2 (Bottom Left)
+        drawSparkle(this, Offset(w * 0.38f, h * 0.68f), w * 0.065f, Color.White)
+
+        // Sparkle Star 3 (Bottom Right)
+        drawSparkle(this, Offset(w * 0.62f, h * 0.64f), w * 0.055f, Color.White)
+    }
+}
+
+@Composable
+fun CarpetShoeIconGraphic(tint: Color = SaffronOrange, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        // Folded Rug / Carpet body with roll
+        val rugPath = Path().apply {
+            moveTo(w * 0.18f, h * 0.16f)
+            lineTo(w * 0.72f, h * 0.16f)
+            quadraticBezierTo(w * 0.90f, h * 0.16f, w * 0.90f, h * 0.38f)
+            lineTo(w * 0.90f, h * 0.74f)
+            lineTo(w * 0.38f, h * 0.74f)
+            quadraticBezierTo(w * 0.18f, h * 0.74f, w * 0.18f, h * 0.48f)
+            close()
+        }
+        drawPath(path = rugPath, color = tint)
+
+        // Rug fold / roll highlight
+        drawCircle(
+            color = Color.White,
+            radius = w * 0.10f,
+            center = Offset(w * 0.38f, h * 0.34f)
+        )
+        drawCircle(
+            color = tint,
+            radius = w * 0.055f,
+            center = Offset(w * 0.38f, h * 0.34f)
+        )
+
+        // Fringe Tassels at bottom
+        for (i in 0..4) {
+            val startX = w * (0.44f + i * 0.095f)
+            drawLine(
+                color = tint,
+                start = Offset(startX, h * 0.76f),
+                end = Offset(startX, h * 0.90f),
+                strokeWidth = w * 0.045f,
+                cap = StrokeCap.Round
+            )
+        }
+
+        // Clean sparkle on carpet
+        drawSparkle(this, Offset(w * 0.66f, h * 0.46f), w * 0.08f, Color.White)
+    }
+}
+
+@Composable
+fun ShoeIconGraphic(tint: Color = SaffronOrange, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        // Sneaker body path
+        val shoePath = Path().apply {
+            moveTo(w * 0.12f, h * 0.65f)
+            lineTo(w * 0.88f, h * 0.65f)
+            quadraticBezierTo(w * 0.92f, h * 0.55f, w * 0.80f, h * 0.50f)
+            lineTo(w * 0.58f, h * 0.48f)
+            lineTo(w * 0.48f, h * 0.24f)
+            quadraticBezierTo(w * 0.38f, h * 0.20f, w * 0.30f, h * 0.28f)
+            lineTo(w * 0.22f, h * 0.42f)
+            lineTo(w * 0.12f, h * 0.50f)
+            close()
+        }
+        drawPath(path = shoePath, color = tint)
+
+        // Thick Soleplate
+        drawLine(
+            color = tint,
+            start = Offset(w * 0.08f, h * 0.76f),
+            end = Offset(w * 0.92f, h * 0.76f),
+            strokeWidth = w * 0.08f,
+            cap = StrokeCap.Round
+        )
+
+        // Lace eyelet stripes
+        drawLine(
+            color = Color.White,
+            start = Offset(w * 0.50f, h * 0.36f),
+            end = Offset(w * 0.60f, h * 0.40f),
+            strokeWidth = w * 0.04f,
+            cap = StrokeCap.Round
+        )
+        drawLine(
+            color = Color.White,
+            start = Offset(w * 0.45f, h * 0.44f),
+            end = Offset(w * 0.56f, h * 0.48f),
+            strokeWidth = w * 0.04f,
+            cap = StrokeCap.Round
+        )
+
+        // Sparkle above sneaker
+        drawSparkle(this, Offset(w * 0.76f, h * 0.30f), w * 0.08f, tint)
+    }
+}
+
+@Composable
+fun WeddingWearIconGraphic(tint: Color = SaffronOrange, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        // Royal hanger / sherwani coat outline
+        val suitPath = Path().apply {
+            moveTo(w * 0.50f, h * 0.16f)
+            lineTo(w * 0.16f, h * 0.32f)
+            lineTo(w * 0.22f, h * 0.88f)
+            lineTo(w * 0.78f, h * 0.88f)
+            lineTo(w * 0.84f, h * 0.32f)
+            close()
+        }
+        drawPath(path = suitPath, color = tint)
+
+        // Golden / White Lapel
+        val lapelPath = Path().apply {
+            moveTo(w * 0.50f, h * 0.30f)
+            lineTo(w * 0.40f, h * 0.55f)
+            lineTo(w * 0.50f, h * 0.80f)
+            lineTo(w * 0.60f, h * 0.55f)
+            close()
+        }
+        drawPath(path = lapelPath, color = Color.White)
+
+        // Sparkle
+        drawSparkle(this, Offset(w * 0.78f, h * 0.24f), w * 0.08f, tint)
+    }
+}
+
+@Composable
+fun PremiumCareIconGraphic(tint: Color = SaffronOrange, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+
+        // Crown / Diamond Premium Shape
+        val crownPath = Path().apply {
+            moveTo(w * 0.15f, h * 0.35f)
+            lineTo(w * 0.30f, h * 0.72f)
+            lineTo(w * 0.70f, h * 0.72f)
+            lineTo(w * 0.85f, h * 0.35f)
+            lineTo(w * 0.65f, h * 0.48f)
+            lineTo(w * 0.50f, h * 0.24f)
+            lineTo(w * 0.35f, h * 0.48f)
+            close()
+        }
+        drawPath(path = crownPath, color = tint)
+
+        // Crown baseline
+        drawLine(
+            color = tint,
+            start = Offset(w * 0.25f, h * 0.80f),
+            end = Offset(w * 0.75f, h * 0.80f),
+            strokeWidth = w * 0.07f,
+            cap = StrokeCap.Round
+        )
+
+        // Crown Jewels / Circles
+        drawCircle(color = Color.White, radius = w * 0.045f, center = Offset(w * 0.50f, h * 0.48f))
+        drawCircle(color = Color.White, radius = w * 0.035f, center = Offset(w * 0.35f, h * 0.56f))
+        drawCircle(color = Color.White, radius = w * 0.035f, center = Offset(w * 0.65f, h * 0.56f))
+    }
+}
+
+@Composable
+fun CategoryModernVisual(
+    category: ServiceCategory,
+    modifier: Modifier = Modifier,
+    tint: Color = SaffronOrange
+) {
+    val rawCatImg = category.imageUrl?.takeIf { it.isNotBlank() }
+    val resolvedCatImg = rawCatImg?.let { url ->
+        when {
+            url.startsWith("http://") || url.startsWith("https://") -> url
+            url.startsWith("/") -> "http://10.0.2.2:3000$url"
+            else -> "http://10.0.2.2:3000/$url"
+        }
+    }
+
+    if (resolvedCatImg != null) {
+        com.example.ui.ApnaNetworkImage(
+            url = resolvedCatImg,
+            contentDescription = category.name,
+            modifier = modifier
+                .clip(CircleShape)
+                .padding(3.dp),
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        when {
+            category.id == "laundry" || category.iconName.contains("Wash", ignoreCase = true) || category.name.contains("Wash", ignoreCase = true) || category.name.contains("Laundry", ignoreCase = true) -> {
+                WashingMachineIconGraphic(tint = tint, modifier = modifier)
+            }
+            category.id == "ironing" || category.iconName.contains("Iron", ignoreCase = true) || category.name.contains("Iron", ignoreCase = true) -> {
+                IronIconGraphic(tint = tint, modifier = modifier)
+            }
+            category.id == "dry_cleaning" || category.iconName.contains("Dry", ignoreCase = true) || category.name.contains("Dry", ignoreCase = true) -> {
+                DryCleanIconGraphic(tint = tint, modifier = modifier)
+            }
+            category.id == "shoe_cleaning" || category.name.contains("Shoe", ignoreCase = true) -> {
+                ShoeIconGraphic(tint = tint, modifier = modifier)
+            }
+            category.id == "carpet_cleaning" || category.name.contains("Carpet", ignoreCase = true) -> {
+                CarpetShoeIconGraphic(tint = tint, modifier = modifier)
+            }
+            category.id == "blanket_wash" || category.name.contains("Blanket", ignoreCase = true) -> {
+                CarpetShoeIconGraphic(tint = tint, modifier = modifier)
+            }
+            category.id == "wedding_wear" || category.name.contains("Wedding", ignoreCase = true) -> {
+                WeddingWearIconGraphic(tint = tint, modifier = modifier)
+            }
+            category.id == "premium_care" || category.name.contains("Premium", ignoreCase = true) -> {
+                PremiumCareIconGraphic(tint = tint, modifier = modifier)
+            }
+            else -> {
+                WashingMachineIconGraphic(tint = tint, modifier = modifier)
+            }
+        }
+    }
+}
+
+// ==========================================
+// HOME DASHBOARD CONTENT (REDESIGNED TO TARGET LAYOUT)
 // ==========================================
 @Composable
 fun HomeDashboardContent(vm: ApnaDhobiViewModel) {
@@ -1520,101 +1910,216 @@ fun HomeDashboardContent(vm: ApnaDhobiViewModel) {
     val categories by vm.categoriesState.collectAsState()
     val vendors by vm.vendorsState.collectAsState()
     val searchQuery by vm.searchQuery.collectAsState()
+    val cartItems by vm.cartItems.collectAsState()
     val context = LocalContext.current
+
+    var showNotificationsDialog by remember { mutableStateOf(false) }
+
+    // Automatically sync latest banners and categories from backend database on Home screen load
+    LaunchedEffect(Unit) {
+        vm.refreshCatalog()
+    }
+
+    if (showNotificationsDialog) {
+        val notificationList by vm.notifications.collectAsState()
+        AlertDialog(
+            onDismissRequest = { showNotificationsDialog = false },
+            title = {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Notifications 🔔", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Charcoal)
+                    if (notificationList.isNotEmpty()) {
+                        Text(
+                            text = "Clear all",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = SaffronOrange,
+                            modifier = Modifier
+                                .clickable { vm.clearNotifications() }
+                                .padding(4.dp)
+                        )
+                    }
+                }
+            },
+            text = {
+                if (notificationList.isEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(Icons.Default.NotificationsNone, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(36.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("No new notifications today! 🎉", fontSize = 13.sp, color = Color.Gray)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 280.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(notificationList) { msg ->
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = LightCream,
+                                border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.Top) {
+                                    Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = SaffronOrange, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(msg, fontSize = 12.5.sp, color = Charcoal, lineHeight = 16.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showNotificationsDialog = false }) {
+                    Text("Close", color = SaffronOrange, fontWeight = FontWeight.Bold)
+                }
+            },
+            shape = RoundedCornerShape(18.dp),
+            containerColor = Color.White
+        )
+    }
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .background(LightCream)
     ) {
-        // Location Header matching Screenshot 1
+        // 1. TOP COMPACT HEADER BAR
         item {
-            Card(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
-                    .clickable { vm.navigateTo(ApnaDhobiScreen.LocationSelection) },
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(4.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 6.dp)
             ) {
                 Row(
-                    modifier = Modifier.padding(14.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Surface(
-                        modifier = Modifier.size(42.dp),
-                        shape = CircleShape,
-                        color = SaffronOrange.copy(alpha = 0.12f)
+                    // Left Brand & Location details
+                    Column(
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
+                        // Brand Logo + Name
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(24.dp),
+                                shape = CircleShape,
+                                color = SaffronOrange.copy(alpha = 0.15f)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.LocalLaundryService,
+                                        contentDescription = null,
+                                        tint = SaffronOrange,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Apna Dhobi",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Charcoal,
+                                letterSpacing = (-0.3).sp
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(2.dp))
+
+                        // Location Pin + Address Text + Dropdown
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable { vm.navigateTo(ApnaDhobiScreen.LocationSelection) }
+                                .padding(vertical = 1.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.LocationOn,
                                 contentDescription = "Location",
                                 tint = SaffronOrange,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(13.dp)
                             )
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Spacer(modifier = Modifier.width(3.dp))
                             Text(
-                                text = "DELIVER TO",
-                                fontSize = 11.sp,
-                                color = Color.Gray,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
+                                text = fullAddress.ifBlank { "Connaught Place, New Delhi..." },
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Charcoal.copy(alpha = 0.85f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
                             Icon(
                                 imageVector = Icons.Default.KeyboardArrowDown,
                                 contentDescription = null,
-                                tint = SaffronOrange,
-                                modifier = Modifier.size(16.dp)
+                                tint = Color.Gray,
+                                modifier = Modifier.size(13.dp)
                             )
                         }
-                        Text(
-                            text = fullAddress.ifBlank { "Shanti Kutir, Block 4-B, Connaught Place, New Delhi..." },
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Charcoal,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
                     }
+
                     Spacer(modifier = Modifier.width(8.dp))
-                    // Top Right Quick Access Icons (Admin Wrench & Delivery Truck)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+
+                    // Right Notification & Action Buttons
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Surface(
                             modifier = Modifier
-                                .size(36.dp)
-                                .clickable { vm.navigateTo(ApnaDhobiScreen.AdminDashboard) },
+                                .size(34.dp)
+                                .clickable {
+                                    showNotificationsDialog = true
+                                },
                             shape = CircleShape,
-                            color = SaffronOrange.copy(alpha = 0.15f)
+                            color = Color.White,
+                            border = BorderStroke(1.dp, Color(0xFFE8E8E8)),
+                            shadowElevation = 1.dp
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    imageVector = Icons.Default.Build,
-                                    contentDescription = "Admin Panel",
-                                    tint = SaffronOrange,
-                                    modifier = Modifier.size(18.dp)
+                                    imageVector = Icons.Default.NotificationsNone,
+                                    contentDescription = "Notifications",
+                                    tint = Charcoal,
+                                    modifier = Modifier.size(17.dp)
                                 )
                             }
                         }
+
                         Surface(
                             modifier = Modifier
-                                .size(36.dp)
-                                .clickable { vm.navigateTo(ApnaDhobiScreen.DeliveryBoyDashboard) },
+                                .size(34.dp)
+                                .clickable {
+                                    vm.setActiveTab("cart")
+                                },
                             shape = CircleShape,
-                            color = RoyalBlue.copy(alpha = 0.15f)
+                            color = Color.White,
+                            border = BorderStroke(1.dp, Color(0xFFE8E8E8)),
+                            shadowElevation = 1.dp
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
-                                    imageVector = Icons.Default.LocalShipping,
-                                    contentDescription = "Delivery Partner",
-                                    tint = RoyalBlue,
-                                    modifier = Modifier.size(18.dp)
+                                    imageVector = Icons.Default.ShoppingBag,
+                                    contentDescription = "Cart / Bucket",
+                                    tint = if (cartItems.isNotEmpty()) SaffronOrange else Charcoal,
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                         }
@@ -1623,128 +2128,147 @@ fun HomeDashboardContent(vm: ApnaDhobiViewModel) {
             }
         }
 
-        // Search Bar
+        // 2. CLEAN COMPACT ROUNDED SEARCH BAR
         item {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { vm.searchQuery.value = it },
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                placeholder = { Text("Search services, dry cleaning, iron...", fontSize = 13.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = SaffronOrange) },
                 shape = RoundedCornerShape(14.dp),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White
-                )
-            )
-            Spacer(modifier = Modifier.height(14.dp))
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
+                elevation = CardDefaults.cardElevation(1.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = "Search",
+                        tint = SaffronOrange,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(modifier = Modifier.weight(1f)) {
+                        if (searchQuery.isEmpty()) {
+                            Text(
+                                text = "Search services, dry cleaning, iron...",
+                                fontSize = 12.5.sp,
+                                color = Color.Gray
+                            )
+                        }
+                        BasicTextField(
+                            value = searchQuery,
+                            onValueChange = { vm.searchQuery.value = it },
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontSize = 12.5.sp,
+                                color = Charcoal,
+                                fontWeight = FontWeight.Normal
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                        contentDescription = null,
+                        tint = SaffronOrange.copy(alpha = 0.7f),
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
         }
 
-        // Dynamic Promo Banners Slider from backend
+        // 3. SPECIAL FOR YOU PROMO BANNERS SLIDER
         item {
             Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                 com.example.ui.PromoBannerSlider(vm = vm, onPromoClick = { code ->
                     Toast.makeText(context, "Promo code applied: $code 🎉", Toast.LENGTH_SHORT).show()
                 })
             }
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(12.dp))
         }
 
-        // Garment Care Categories Header & Horizontal Row
+        // 4. WHAT CARE DO YOUR GARMENTS NEED? (Services / Categories)
         item {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) {
                 Text(
                     text = "What care do your garments need?",
-                    fontSize = 17.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = Charcoal
                 )
+                Spacer(modifier = Modifier.height(1.dp))
                 Text(
                     text = "Choose from our specialized fabric care services",
-                    fontSize = 12.sp,
+                    fontSize = 11.5.sp,
                     color = Color.Gray
                 )
             }
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
         }
 
         item {
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 items(categories) { cat ->
-                    val categoryIcon = when (cat.id) {
-                        "laundry" -> Icons.Default.LocalLaundryService
-                        "dry_cleaning" -> Icons.Default.DryCleaning
-                        "ironing" -> Icons.Default.Iron
-                        "shoe_cleaning" -> Icons.Default.CleaningServices
-                        "carpet_cleaning" -> Icons.Default.RollerShades
-                        "blanket_wash" -> Icons.Default.AcUnit
-                        "wedding_wear" -> Icons.Default.Star
-                        "premium_care" -> Icons.Default.Favorite
-                        else -> Icons.Default.LocalLaundryService
-                    }
+                    val catThemeColor = SaffronOrange
 
-                    Card(
+                    Column(
                         modifier = Modifier
-                            .width(100.dp)
+                            .width(78.dp)
                             .clickable {
                                 vm.navigateTo(ApnaDhobiScreen.ProductListing(cat.id, cat.name))
                             },
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(3.dp)
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Column(
-                            modifier = Modifier.padding(vertical = 14.dp, horizontal = 8.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                        Surface(
+                            modifier = Modifier.size(72.dp),
+                            shape = CircleShape,
+                            color = Color(0xFFF3F5F9),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
                         ) {
-                            Surface(
-                                modifier = Modifier
-                                    .size(54.dp)
-                                    .border(1.5.dp, SaffronOrange.copy(alpha = 0.3f), CircleShape),
-                                shape = CircleShape,
-                                color = SaffronOrange.copy(alpha = 0.10f),
-                                shadowElevation = 2.dp
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = categoryIcon,
-                                        contentDescription = cat.name,
-                                        tint = SaffronOrange,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
+                                CategoryModernVisual(
+                                    category = cat,
+                                    modifier = Modifier.size(42.dp),
+                                    tint = catThemeColor
+                                )
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = cat.name,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Charcoal,
-                                textAlign = TextAlign.Center,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
                         }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = cat.name,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Charcoal,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // AI Voice-Based Booking Banner Card
+        // 5. AI VOICE-BASED BOOKING BANNER
         item {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(4.dp)
+                shape = RoundedCornerShape(14.dp),
+                elevation = CardDefaults.cardElevation(2.dp)
             ) {
                 Box(
                     modifier = Modifier
@@ -1754,14 +2278,14 @@ fun HomeDashboardContent(vm: ApnaDhobiViewModel) {
                                 listOf(SaffronOrange, Color(0xFFFF8C00))
                             )
                         )
-                        .padding(16.dp)
+                        .padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Surface(
-                            modifier = Modifier.size(46.dp),
+                            modifier = Modifier.size(38.dp),
                             shape = CircleShape,
                             color = Color.White
                         ) {
@@ -1770,152 +2294,141 @@ fun HomeDashboardContent(vm: ApnaDhobiViewModel) {
                                     imageVector = Icons.Default.Mic,
                                     contentDescription = "Voice Booking",
                                     tint = SaffronOrange,
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = "AI Voice-Based Booking",
-                                fontSize = 15.sp,
+                                fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
                             Text(
                                 text = "Just tap & speak your order in English/Hindi!",
-                                fontSize = 11.sp,
+                                fontSize = 10.5.sp,
                                 color = Color.White.copy(alpha = 0.9f)
                             )
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Button(
                             onClick = {
                                 Toast.makeText(context, "Listening... Speak your order! 🎤", Toast.LENGTH_SHORT).show()
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(20.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                            shape = RoundedCornerShape(16.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                         ) {
-                            Text("Speak 🎤", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SaffronOrange)
+                            Text("Speak 🎤", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = SaffronOrange)
                         }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
         }
 
-        // Partner with Apna Dhobi Card
+        // 5.1 MID PROMO SUB-BANNER SLIDER (IMAGE 2 TARGET LAYOUT)
+        item {
+            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                com.example.ui.MidBannerSlider(
+                    vm = vm,
+                    onPromoClick = { codeOrUrl ->
+                        if (codeOrUrl.startsWith("/")) {
+                            vm.navigateTo(ApnaDhobiScreen.ProductListing("laundry", "Wash & Fold"))
+                        } else {
+                            Toast.makeText(context, "Promo code applied: $codeOrUrl 🎉", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
+        // 6. EXPRESS PICKUP & DELIVERY CARD
         item {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(4.dp)
+                    .padding(horizontal = 16.dp)
+                    .clickable { vm.navigateTo(ApnaDhobiScreen.SlotSelection) },
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, Color(0xFFEBEBEB)),
+                elevation = CardDefaults.cardElevation(1.5.dp)
             ) {
-                Box(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(
-                            brush = Brush.horizontalGradient(
-                                listOf(RoyalBlue, Color(0xFF0288D1))
-                            )
-                        )
-                        .padding(16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            modifier = Modifier.size(46.dp),
-                            shape = CircleShape,
-                            color = Color.White
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Store,
-                                    contentDescription = "Partner",
-                                    tint = RoyalBlue,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Partner with Apna Dhobi",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            Text(
-                                text = "List your shop to get orders instantly! 🐮",
-                                fontSize = 11.sp,
-                                color = Color.White.copy(alpha = 0.9f)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clickable { vm.navigateTo(ApnaDhobiScreen.VendorRegistration) },
-                            shape = CircleShape,
-                            color = Color.White
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.ArrowForward,
-                                    contentDescription = "Register Shop",
-                                    tint = RoyalBlue,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(20.dp))
-        }
-
-        // REAL-TIME PARTNER CONNECTIONS Section
-        item {
-            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Surface(
+                        modifier = Modifier.size(28.dp),
+                        shape = CircleShape,
+                        color = GoldPremium.copy(alpha = 0.15f)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Bolt,
+                                contentDescription = null,
+                                tint = GoldPremium,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "REAL-TIME PARTNER CONNECTIONS",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Black,
-                            color = Charcoal,
-                            letterSpacing = 0.5.sp
+                            text = "Express Pickup & Delivery",
+                            fontSize = 12.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Charcoal
                         )
                         Text(
-                            text = "Active marketplace store channels",
-                            fontSize = 11.sp,
+                            text = "We pick up and deliver at your doorstep",
+                            fontSize = 10.5.sp,
                             color = Color.Gray
                         )
                     }
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = GreenSuccess.copy(alpha = 0.12f)
-                    ) {
-                        Text(
-                            text = "Live Syncing (24/7)",
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = GreenSuccess
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                        contentDescription = null,
+                        tint = Color.Gray,
+                        modifier = Modifier.size(12.dp)
+                    )
                 }
-                Spacer(modifier = Modifier.height(10.dp))
             }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        // 7. POPULAR LAUNDRY NEARBY
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Popular Laundry Nearby",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Charcoal
+                )
+                Text(
+                    text = "See all",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SaffronOrange,
+                    modifier = Modifier
+                        .clickable { vm.navigateTo(ApnaDhobiScreen.ProductListing("laundry", "All Laundries")) }
+                        .padding(2.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
         }
 
         item {
@@ -1923,143 +2436,293 @@ fun HomeDashboardContent(vm: ApnaDhobiViewModel) {
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(vendors.take(2)) { vendor ->
+                items(vendors) { vendor ->
+                    val rawVendorImg = vendor.imageUrl?.takeIf { it.isNotBlank() }
+                    val resolvedVendorImg = rawVendorImg?.let { url ->
+                        when {
+                            url.startsWith("http://") || url.startsWith("https://") -> url
+                            url.startsWith("/") -> "http://10.0.2.2:3000$url"
+                            else -> "http://10.0.2.2:3000/$url"
+                        }
+                    }
+
                     Card(
                         modifier = Modifier
-                            .width(220.dp)
+                            .width(205.dp)
                             .clickable { vm.navigateTo(ApnaDhobiScreen.VendorShop(vendor.id)) },
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(14.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(2.dp)
+                        elevation = CardDefaults.cardElevation(2.dp),
+                        border = BorderStroke(1.dp, Color(0xFFEEEEEE))
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Surface(
-                                    modifier = Modifier.size(40.dp),
-                                    shape = CircleShape,
-                                    color = RoyalBlue.copy(alpha = 0.12f)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text(
-                                            text = vendor.logoText.ifBlank { vendor.name.take(2).uppercase() },
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 14.sp,
-                                            color = RoyalBlue
-                                        )
+                        Column {
+                            // Top Provider Visual Banner (Dynamic media with fallback)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(105.dp)
+                                    .clip(RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (resolvedVendorImg != null) {
+                                    com.example.ui.ApnaNetworkImage(
+                                        url = resolvedVendorImg,
+                                        contentDescription = vendor.name,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                Brush.linearGradient(
+                                                    listOf(
+                                                        RoyalBlue.copy(alpha = 0.85f),
+                                                        SaffronOrange.copy(alpha = 0.85f)
+                                                    )
+                                                )
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Surface(
+                                                modifier = Modifier.size(38.dp),
+                                                shape = CircleShape,
+                                                color = Color.White.copy(alpha = 0.92f)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text(
+                                                        text = vendor.logoText.ifBlank { vendor.name.take(2).uppercase() },
+                                                        fontWeight = FontWeight.Black,
+                                                        fontSize = 14.sp,
+                                                        color = RoyalBlue
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "★ Verified Partner",
+                                                fontSize = 9.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        }
                                     }
                                 }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column(modifier = Modifier.weight(1f)) {
+                            }
+
+                            // Provider details (Matching Image 2 Specs)
+                            Column(
+                                modifier = Modifier.padding(10.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     Text(
                                         text = vendor.name,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
+                                        color = Charcoal,
                                         maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
                                     )
-                                    Text(
-                                        text = "★ ${vendor.rating} • ${vendor.distanceKm} km",
-                                        fontSize = 10.sp,
-                                        color = Color.Gray
-                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = "${vendor.rating}",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Charcoal
+                                        )
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                        Icon(
+                                            imageVector = Icons.Default.Star,
+                                            contentDescription = null,
+                                            tint = GoldPremium,
+                                            modifier = Modifier.size(11.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                        Text(
+                                            text = "(${vendor.ratingCount})",
+                                            fontSize = 9.5.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                // Service tags (Row 1: Wash & Fold, Dry Cleaning)
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = Color(0xFFF3F4F6)
+                                    ) {
+                                        Text(
+                                            text = "Wash & Fold",
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFF4B5563),
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = Color(0xFFF3F4F6)
+                                    ) {
+                                        Text(
+                                            text = "Dry Cleaning",
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFF4B5563),
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(3.dp))
+
+                                // Service tags (Row 2: Carpet Wash, Wash & Iron)
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = Color(0xFFF3F4F6)
+                                    ) {
+                                        Text(
+                                            text = "Carpet Wash",
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFF4B5563),
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = Color(0xFFF3F4F6)
+                                    ) {
+                                        Text(
+                                            text = "Wash & Iron",
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFF4B5563),
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(5.dp))
+
+                                // Highlighted Service badges (Row 3: Free Pickup, 24h Delivery)
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = RoyalBlue.copy(alpha = 0.09f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "🚚 Free Pickup",
+                                                fontSize = 8.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = RoyalBlue
+                                            )
+                                        }
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = SaffronOrange.copy(alpha = 0.09f)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "⚡ 24h Delivery",
+                                                fontSize = 8.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = SaffronOrange
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Bottom Row: Open status on Left, Distance on Right
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .clip(CircleShape)
+                                                .background(if (vendor.isOpen) GreenSuccess else Color.Gray)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = if (vendor.isOpen) "Open Now" else "Closed",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = if (vendor.isOpen) GreenSuccess else Color.Gray
+                                        )
+                                    }
+
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.LocationOn,
+                                            contentDescription = null,
+                                            tint = SaffronOrange,
+                                            modifier = Modifier.size(12.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(2.dp))
+                                        Text(
+                                            text = "${vendor.distanceKm} km",
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Charcoal
+                                        )
+                                    }
                                 }
                             }
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Button(
-                                onClick = { vm.navigateTo(ApnaDhobiScreen.VendorShop(vendor.id)) },
-                                modifier = Modifier.fillMaxWidth().height(32.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
-                                contentPadding = PaddingValues(0.dp),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Text("Connect 📡", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
                         }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // Premium Nearby Partners Title & Cards
+        // 9. FOOTER PROMO BANNER SLIDER
         item {
-            Text(
-                text = "Premium Nearby Partners",
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-                color = Charcoal,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            com.example.ui.FooterBannerSlider(
+                vm = vm,
+                onPromoClick = { codeOrUrl ->
+                    if (codeOrUrl.startsWith("/")) {
+                        vm.navigateTo(ApnaDhobiScreen.ProductListing("ironing", "Steam Ironing"))
+                    } else {
+                        Toast.makeText(context, "Offer Claimed: $codeOrUrl 🎉", Toast.LENGTH_SHORT).show()
+                    }
+                }
             )
-        }
-
-        items(vendors) { vendor ->
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
-                    .clickable { vm.navigateTo(ApnaDhobiScreen.VendorShop(vendor.id)) },
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(3.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        modifier = Modifier.size(56.dp),
-                        shape = CircleShape,
-                        color = RoyalBlue.copy(alpha = 0.1f)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = vendor.logoText.ifBlank { vendor.name.take(2).uppercase() },
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp,
-                                color = RoyalBlue
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = vendor.name,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Charcoal
-                        )
-                        Text(
-                            text = vendor.description,
-                            fontSize = 12.sp,
-                            color = Color.Gray,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Star, contentDescription = null, tint = GoldPremium, modifier = Modifier.size(15.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(text = "${vendor.rating}", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(text = "• ${vendor.distanceKm} km", fontSize = 12.sp, color = Color.Gray)
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(text = "Starts @ ₹${vendor.startingPrice}/kg", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = SaffronOrange)
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = { vm.navigateTo(ApnaDhobiScreen.VendorShop(vendor.id)) },
-                        colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Text("View Shop", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-        item {
-            Spacer(modifier = Modifier.height(80.dp))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
@@ -2441,70 +3104,465 @@ fun OrderTrackingScreen(vm: ApnaDhobiViewModel, orderId: Int) {
 }
 
 // ==========================================
-// PRODUCT LISTING SCREEN
+// PRODUCT LISTING SCREEN (MATCHING IMAGE 1)
 // ==========================================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProductListingScreen(vm: ApnaDhobiViewModel, categoryId: String, categoryName: String) {
     val products by vm.productsState.collectAsState()
+    val categories by vm.categoriesState.collectAsState()
     val cartItems by vm.cartItems.collectAsState()
     val vendors by vm.vendorsState.collectAsState()
     val defaultVendor = vendors.firstOrNull() ?: Vendor("v1", "Apna Dhobi Hub", "Central Laundromat", 4.8, 1.2, 30, 49, "#1E88E5", "AD", true)
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(categoryName) },
-                navigationIcon = {
-                    IconButton(onClick = { vm.navigateBack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
+    // Current category selection state
+    var selectedCatId by remember(categoryId) { 
+        mutableStateOf(if (categoryId.isNotBlank()) categoryId else (categories.firstOrNull()?.id ?: "dry_cleaning")) 
+    }
+    var searchQuery by remember { mutableStateOf("") }
+
+    // Find the currently selected category object
+    val selectedCategoryObj = categories.find { it.id.equals(selectedCatId, ignoreCase = true) }
+        ?: categories.find { it.name.equals(selectedCatId, ignoreCase = true) }
+
+    val displayTitle = selectedCategoryObj?.name ?: categoryName.ifBlank { "Dry Cleaning" }
+    val displayDescription = selectedCategoryObj?.description?.takeIf { it.isNotBlank() }
+        ?: "Laundering at: Apna Dhobi Express"
+
+    val totalCartCount = cartItems.sumOf { it.quantity }
+
+    // Filter products by selected category and search query
+    val filteredProducts = remember(products, selectedCatId, searchQuery) {
+        products.filter { prod ->
+            val matchesCategory = if (selectedCatId.isBlank() || selectedCatId.equals("all", ignoreCase = true)) {
+                true
+            } else {
+                prod.categoryId.equals(selectedCatId, ignoreCase = true) ||
+                (selectedCatId == "dry_cleaning" && prod.categoryId == "dry_cleaning") ||
+                (selectedCatId == "laundry" && prod.categoryId == "laundry") ||
+                (selectedCatId == "ironing" && prod.categoryId == "ironing") ||
+                (selectedCatId == "shoe_cleaning" && prod.categoryId == "shoe_cleaning")
+            }
+            val matchesSearch = searchQuery.isBlank() || 
+                prod.name.contains(searchQuery, ignoreCase = true) || 
+                (prod.popularBadge?.contains(searchQuery, ignoreCase = true) == true)
+            matchesCategory && matchesSearch
         }
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(LightCream)
-        ) {
-            items(products.filter { it.categoryId == categoryId || categoryId.isBlank() }) { prod ->
-                val inCart = cartItems.find { it.productId == prod.id }
-                Card(
+    }
+
+    // State for Customize Garment Treatment Dialog (Image Modal)
+    var customizingProduct by remember { mutableStateOf<LaundryProduct?>(null) }
+
+    // Render Modal Dialog when user clicks ADD on a product
+    customizingProduct?.let { prodToCustomize ->
+        CustomizeGarmentTreatmentDialog(
+            product = prodToCustomize,
+            vendor = defaultVendor,
+            onDismiss = { customizingProduct = null },
+            onAddToBasket = { treatment, notes, qty ->
+                vm.addProductToCartCustomized(prodToCustomize, defaultVendor, treatment, notes, qty)
+                customizingProduct = null
+            }
+        )
+    }
+
+    Scaffold(
+        containerColor = Color(0xFFFDFBF7), // Matching soft off-white cream background in Image 1
+        topBar = {
+            Surface(
+                color = Color(0xFFFDFBF7),
+                shadowElevation = 0.dp
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
+                    // Header Row: Back button, Title & Category Description, Cart Icon
                     Row(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(prod.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text(prod.deliveryEstimate, fontSize = 12.sp, color = Color.Gray)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("₹${prod.discountPrice}", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = SaffronOrange)
+                        IconButton(
+                            onClick = { vm.navigateBack() },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color(0xFF1E3A8A), // Navy Blue
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
 
-                        if (inCart == null) {
-                            Button(
-                                onClick = { vm.addProductToCart(prod, defaultVendor) },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
-                            ) {
-                                Text("ADD")
-                            }
-                        } else {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = { vm.removeProductFromCart(prod, defaultVendor) }) {
-                                    Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Remove", tint = SaffronOrange)
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = displayTitle,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF1E3A8A) // Deep Navy Blue (Image 1)
+                            )
+                            Text(
+                                text = displayDescription,
+                                fontSize = 11.sp,
+                                color = Color(0xFF64748B),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        // Top right Cart button with badge
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clickable { 
+                                    vm.setActiveTab("cart")
+                                    vm.navigateTo(ApnaDhobiScreen.HomeFrame)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ShoppingCart,
+                                contentDescription = "Cart",
+                                tint = Color(0xFF1E3A8A),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            if (totalCartCount > 0) {
+                                Surface(
+                                    shape = CircleShape,
+                                    color = SaffronOrange,
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .size(17.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "$totalCartCount",
+                                            color = Color.White,
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
                                 }
-                                Text("${inCart.quantity}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                IconButton(onClick = { vm.addProductToCart(prod, defaultVendor) }) {
-                                    Icon(Icons.Default.AddCircle, contentDescription = "Add", tint = SaffronOrange)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Rounded Search Bar (Image 1: "Search clothes (e.g., shirt, saree, shoe...)")
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        color = Color.White,
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        shadowElevation = 1.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "Search",
+                                tint = Color(0xFF1E3A8A),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            BasicTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Normal,
+                                    color = Charcoal
+                                ),
+                                decorationBox = { innerTextField ->
+                                    if (searchQuery.isEmpty()) {
+                                        Text(
+                                            text = "Search clothes (e.g., shirt, saree, shoe...)",
+                                            fontSize = 13.sp,
+                                            color = Color(0xFF94A3B8)
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            )
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { searchQuery = "" },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Clear",
+                                        tint = Color(0xFF94A3B8),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Horizontal Category Filter Pills (Image 1: Laundry, Dry Cleaning (Selected), Ironing, Shoe Cleaning)
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(categories) { cat ->
+                            val isSelected = cat.id.equals(selectedCatId, ignoreCase = true) ||
+                                            (selectedCatId == "dry_cleaning" && cat.id == "dry_cleaning") ||
+                                            (selectedCatId == "laundry" && cat.id == "laundry") ||
+                                            (selectedCatId == "ironing" && cat.id == "ironing") ||
+                                            (selectedCatId == "shoe_cleaning" && cat.id == "shoe_cleaning")
+
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = if (isSelected) SaffronOrange else Color.White,
+                                border = if (isSelected) null else BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                shadowElevation = if (isSelected) 2.dp else 0.5.dp,
+                                modifier = Modifier.clickable {
+                                    selectedCatId = cat.id
+                                }
+                            ) {
+                                Text(
+                                    text = cat.name,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                    color = if (isSelected) Color.White else Color(0xFF334155),
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ) { innerPadding ->
+        if (filteredProducts.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("🧺", fontSize = 48.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "No clothes found in this category",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Charcoal
+                    )
+                    Text(
+                        text = "Try switching category or clear search query",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
+            }
+        } else {
+            // 2-Column Product Grid (Image 1 layout)
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 32.dp)
+            ) {
+                items(filteredProducts) { prod ->
+                    val inCart = cartItems.find { it.productId == prod.id }
+                    val hasBadge = !prod.popularBadge.isNullOrBlank()
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { customizingProduct = prod },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+                        elevation = CardDefaults.cardElevation(2.dp)
+                    ) {
+                        Column {
+                            // Top Image Container with Badge Overlay
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(150.dp)
+                                    .background(Color(0xFFF8FAFC)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val rawImg = prod.imageUrl?.takeIf { it.isNotBlank() }
+                                val resolvedImg = rawImg?.let { url ->
+                                    when {
+                                        url.startsWith("http://") || url.startsWith("https://") -> url
+                                        url.startsWith("/") -> "http://10.0.2.2:3000$url"
+                                        else -> "http://10.0.2.2:3000/$url"
+                                    }
+                                }
+
+                                if (resolvedImg != null) {
+                                    com.example.ui.ApnaNetworkImage(
+                                        url = resolvedImg,
+                                        contentDescription = prod.name,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    // High quality fallback vector visual
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    listOf(Color(0xFFF1F5F9), Color(0xFFE2E8F0))
+                                                )
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("👔", fontSize = 42.sp)
+                                    }
+                                }
+
+                                // Premium Badge on top-left of image (Image 1: "PREMIUM CHOICE" / "POPULAR")
+                                if (hasBadge) {
+                                    Surface(
+                                        modifier = Modifier
+                                            .align(Alignment.TopStart)
+                                            .padding(6.dp),
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = SaffronOrange
+                                    ) {
+                                        Text(
+                                            text = prod.popularBadge!!.uppercase(),
+                                            color = Color.White,
+                                            fontSize = 8.5.sp,
+                                            fontWeight = FontWeight.Black,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.5.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Product Details Section (Title, Delivery, Price & ADD Button)
+                            Column(
+                                modifier = Modifier.padding(10.dp)
+                            ) {
+                                Text(
+                                    text = prod.name,
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1E3A8A), // Navy Blue (Image 1)
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                Spacer(modifier = Modifier.height(2.dp))
+
+                                Text(
+                                    text = if (prod.deliveryEstimate.startsWith("Delivery:", ignoreCase = true)) prod.deliveryEstimate else "Delivery: ${prod.deliveryEstimate}",
+                                    fontSize = 10.5.sp,
+                                    color = Color(0xFF64748B)
+                                )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // Bottom Row: Pricing & ADD Button
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Bottom
+                                ) {
+                                    Column {
+                                        // Strikethrough Original Price
+                                        if (prod.originalPrice > prod.discountPrice) {
+                                            Text(
+                                                text = "₹${prod.originalPrice.toInt()}",
+                                                fontSize = 11.5.sp,
+                                                color = Color(0xFF94A3B8),
+                                                textDecoration = TextDecoration.LineThrough
+                                            )
+                                        }
+                                        // Bold Orange Discount Price
+                                        Text(
+                                            text = "₹${prod.discountPrice.toInt()}",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = SaffronOrange
+                                        )
+                                    }
+
+                                    // ADD / Quantity Button
+                                    if (inCart == null) {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = Color(0xFF1E3A8A), // Deep Navy Blue (Image 1)
+                                            shadowElevation = 1.5.dp,
+                                            modifier = Modifier.clickable {
+                                                customizingProduct = prod
+                                            }
+                                        ) {
+                                            Text(
+                                                text = "ADD",
+                                                color = Color.White,
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                            )
+                                        }
+                                    } else {
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = Color(0xFF1E3A8A).copy(alpha = 0.08f),
+                                            border = BorderStroke(1.dp, Color(0xFF1E3A8A))
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(24.dp)
+                                                        .clickable { vm.removeProductFromCart(prod, defaultVendor) },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text("-", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E3A8A))
+                                                }
+                                                Text(
+                                                    text = "${inCart.quantity}",
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 12.sp,
+                                                    color = Color(0xFF1E3A8A),
+                                                    modifier = Modifier.padding(horizontal = 6.dp)
+                                                )
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(24.dp)
+                                                        .clickable {
+                                                            customizingProduct = prod
+                                                        },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Text("+", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E3A8A))
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -2515,29 +3573,1498 @@ fun ProductListingScreen(vm: ApnaDhobiViewModel, categoryId: String, categoryNam
     }
 }
 
+/**
+ * Customize Garment Treatment Dialog Modal (Exact Design from Uploaded Image)
+ */
+@Composable
+fun CustomizeGarmentTreatmentDialog(
+    product: LaundryProduct,
+    vendor: Vendor,
+    onDismiss: () -> Unit,
+    onAddToBasket: (treatment: String, notes: String, quantity: Int) -> Unit
+) {
+    var selectedTreatment by remember { mutableStateOf("Standard Wash 🧺") }
+    var userNotes by remember { mutableStateOf("") }
+    var quantity by remember { mutableStateOf(1) }
+
+    val treatments = listOf(
+        Triple("Standard Wash 🧺", "Inbuilt deep clean", 0),
+        Triple("Delicate Silk 🌸", "Delicately washed for fabrics like silk", 50),
+        Triple("Heavy Bead 💎", "No damage wash for beaded/bridal wear", 100)
+    )
+
+    val extraCost = treatments.find { it.first == selectedTreatment }?.third ?: 0
+    val unitPrice = product.discountPrice.toInt() + extraCost
+    val totalPrice = unitPrice * quantity
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = Color(0xFF232733), // Dark charcoal-slate container from Image
+            shadowElevation = 8.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                // Header
+                Text(
+                    text = "Customize Garment Treatment",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF38BDF8) // Bright Blue header from Image
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Configure options for ${product.name}",
+                    fontSize = 12.5.sp,
+                    color = Color(0xFF94A3B8)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Section 1: SELECT FABRIC TREATMENT TYPE
+                Text(
+                    text = "SELECT FABRIC TREATMENT TYPE:",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SaffronOrange,
+                    letterSpacing = 0.5.sp
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                treatments.forEach { (name, desc, extra) ->
+                    val isSelected = selectedTreatment == name
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .clickable { selectedTreatment = name },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) Color(0xFF1E293B) else Color.White,
+                        border = if (isSelected) BorderStroke(1.5.dp, Color(0xFF2563EB)) else null,
+                        shadowElevation = if (isSelected) 0.dp else 1.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = name,
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Color(0xFF38BDF8) else Color(0xFF0F172A)
+                                )
+                                Text(
+                                    text = desc,
+                                    fontSize = 10.5.sp,
+                                    color = if (isSelected) Color(0xFF94A3B8) else Color(0xFF64748B)
+                                )
+                            }
+                            Text(
+                                text = "+₹$extra",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SaffronOrange
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Section 2: SPECIAL LAUNDERING INSTRUC
+                Text(
+                    text = "SPECIAL LAUNDERING INSTRUC:",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = SaffronOrange,
+                    letterSpacing = 0.5.sp
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.White
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        BasicTextField(
+                            value = userNotes,
+                            onValueChange = { userNotes = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                fontSize = 12.5.sp,
+                                color = Color(0xFF0F172A)
+                            ),
+                            decorationBox = { innerTextField ->
+                                if (userNotes.isEmpty()) {
+                                    Text(
+                                        text = "e.g. starch heavily, remove cuff stain...",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF94A3B8)
+                                    )
+                                }
+                                innerTextField()
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Section 3: SELECT QTY
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "SELECT QTY:",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SaffronOrange,
+                        letterSpacing = 0.5.sp
+                    )
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.White
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clickable { if (quantity > 1) quantity-- },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("-", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                            }
+                            Text(
+                                text = "$quantity",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0F172A),
+                                modifier = Modifier.padding(horizontal = 10.dp)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clickable { quantity++ },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("+", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Primary CTA Button: Add to Basket • ₹totalPrice
+                Button(
+                    onClick = {
+                        onAddToBasket(selectedTreatment, userNotes, quantity)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
+                ) {
+                    Text(
+                        text = "Add to Basket • ₹$totalPrice",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Cancel Button
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onDismiss() }
+                        .padding(vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Cancel",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF94A3B8)
+                    )
+                }
+            }
+        }
+    }
+}
+
 // ==========================================
-// VENDOR SHOP SCREEN
+// VENDOR SHOP SCREEN (MATCHING IMAGE 3 + REAL-TIME CONTROLS)
 // ==========================================
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VendorShopScreen(vm: ApnaDhobiViewModel, vendorId: String) {
     val vendors by vm.vendorsState.collectAsState()
-    val vendor = vendors.find { it.id == vendorId }
+    val products by vm.productsState.collectAsState()
+    val cartItems by vm.cartItems.collectAsState()
+    val favVendors by vm.favoriteVendorIds.collectAsState()
+    val reviewsMap by vm.vendorReviewsState.collectAsState()
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(vendor?.name ?: "Vendor Details") },
-                navigationIcon = {
-                    IconButton(onClick = { vm.navigateBack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+    val vendor = vendors.find { it.id == vendorId } ?: vendors.firstOrNull() ?: Vendor(
+        id = "vendor_1",
+        name = "Apna Dhobi Express",
+        description = "Express laundry, ironing & fabric care. We use eco-friendly detergents and advanced German washing technology for supreme hygiene and wrinkle-free finishing.",
+        rating = 4.8,
+        distanceKm = 1.2,
+        deliveryTimeMins = 45,
+        startingPrice = 49,
+        bannerColorHex = "0xFF0D47A1",
+        logoText = "ADE",
+        isOpen = true
+    )
+
+    val isFav = favVendors.contains(vendor.id)
+
+    // Build the dynamic list of store images
+    val allStoreImages = remember(vendor) {
+        val list = mutableListOf<String>()
+        val mainImg = vendor.imageUrl?.takeIf { it.isNotBlank() }
+        if (mainImg != null) {
+            val resolved = when {
+                mainImg.startsWith("http://") || mainImg.startsWith("https://") -> mainImg
+                mainImg.startsWith("/") -> "http://10.0.2.2:3000$mainImg"
+                else -> "http://10.0.2.2:3000/$mainImg"
+            }
+            list.add(resolved)
+        }
+        if (vendor.galleryImages.isNotEmpty()) {
+            list.addAll(vendor.galleryImages)
+        } else {
+            list.addAll(listOf(
+                "https://images.unsplash.com/photo-1545173168-9f1947eebb7f?w=800&q=80",
+                "https://images.unsplash.com/photo-1517677208171-0bc6725a3e60?w=800&q=80",
+                "https://images.unsplash.com/photo-1582735689369-4fe89db7114c?w=800&q=80",
+                "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=800&q=80"
+            ))
+        }
+        list.distinct()
+    }
+
+    val pagerState = rememberPagerState(pageCount = { allStoreImages.size.coerceAtLeast(1) })
+
+    var selectedTabIndex by remember { mutableIntStateOf(0) }
+    var isReadMore by remember { mutableStateOf(false) }
+    var selectedCategoryFilter by remember { mutableStateOf("All") }
+
+    // Dialog state for Customizing Weight / Pairs & Fabric Inquiry
+    var customizingProduct by remember { mutableStateOf<LaundryProduct?>(null) }
+    var itemQuantity by remember { mutableIntStateOf(1) }
+    var itemWeightKg by remember { mutableStateOf("1") }
+    var unitMode by remember { mutableStateOf("Pairs / Pieces") }
+    var fabricInquiryText by remember { mutableStateOf("") }
+
+    // Dialog state for Writing a Review
+    var showWriteReviewDialog by remember { mutableStateOf(false) }
+    var reviewAuthorName by remember { mutableStateOf("") }
+    var reviewRatingScore by remember { mutableDoubleStateOf(5.0) }
+    var reviewCommentText by remember { mutableStateOf("") }
+
+    val tabTitles = listOf("About", "Services", "Gallery", "Reviews")
+
+    // --- ITEM CUSTOMIZATION & INQUIRY MODAL DIALOG ---
+    customizingProduct?.let { prod ->
+        AlertDialog(
+            onDismissRequest = { customizingProduct = null },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        modifier = Modifier.size(36.dp),
+                        shape = CircleShape,
+                        color = SaffronOrange.copy(alpha = 0.15f)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.LocalLaundryService, contentDescription = null, tint = SaffronOrange, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(prod.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Charcoal)
+                        Text("Base: ₹${prod.discountPrice.toInt()} • ${prod.deliveryEstimate}", fontSize = 12.sp, color = Color.Gray)
                     }
                 }
-            )
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Unit selector (Pieces/Pairs vs Weight in Kg)
+                    Text("SELECT QUANTITY TYPE:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("Pairs / Pieces", "Weight (Kg)").forEach { mode ->
+                            val isSelected = unitMode == mode
+                            Surface(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { unitMode = mode },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) SaffronOrange.copy(alpha = 0.12f) else Color(0xFFF5F5F5),
+                                border = BorderStroke(1.dp, if (isSelected) SaffronOrange else Color.Transparent)
+                            ) {
+                                Text(
+                                    text = mode,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) SaffronOrange else Charcoal,
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    if (unitMode == "Pairs / Pieces") {
+                        Text("NUMBER OF PAIRS / PIECES:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                listOf(1, 2, 3, 5).forEach { count ->
+                                    Surface(
+                                        modifier = Modifier.clickable { itemQuantity = count },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (itemQuantity == count) SaffronOrange else Color(0xFFF0F0F0)
+                                    ) {
+                                        Text(
+                                            text = "$count",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (itemQuantity == count) Color.White else Charcoal,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = { if (itemQuantity > 1) itemQuantity-- },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.RemoveCircleOutline, contentDescription = "Minus", tint = SaffronOrange)
+                                }
+                                Text("$itemQuantity", fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.padding(horizontal = 6.dp))
+                                IconButton(
+                                    onClick = { itemQuantity++ },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.AddCircle, contentDescription = "Plus", tint = SaffronOrange)
+                                }
+                            }
+                        }
+                    } else {
+                        Text("ESTIMATED WEIGHT (KG):", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("1", "2", "3", "5", "8+").forEach { kg ->
+                                val isSelected = itemWeightKg == kg
+                                Surface(
+                                    modifier = Modifier.clickable { itemWeightKg = kg },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) SaffronOrange else Color(0xFFF0F0F0)
+                                ) {
+                                    Text(
+                                        text = "$kg Kg",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) Color.White else Charcoal,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Special Care Inquiry & Notes
+                    Text("SPECIAL INQUIRY / FABRIC CARE NOTES:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    OutlinedTextField(
+                        value = fabricInquiryText,
+                        onValueChange = { fabricInquiryText = it },
+                        placeholder = { Text("e.g. Starch collar, separate whites, gentle fabric wash...", fontSize = 11.5.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = false,
+                        maxLines = 2,
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = Charcoal)
+                    )
+                }
+            },
+            confirmButton = {
+                val multiplier = if (unitMode == "Pairs / Pieces") itemQuantity else (itemWeightKg.toIntOrNull() ?: 1)
+                val finalPrice = (prod.discountPrice * multiplier).toInt()
+                Button(
+                    onClick = {
+                        for (i in 1..multiplier) {
+                            vm.addProductToCart(prod, vendor)
+                        }
+                        if (fabricInquiryText.isNotBlank()) {
+                            vm.pushSimulatedNotification("Note saved for ${prod.name}: '$fabricInquiryText'")
+                        }
+                        customizingProduct = null
+                        Toast.makeText(context, "Added $multiplier ${prod.name} (₹$finalPrice) to cart! 🧺", Toast.LENGTH_SHORT).show()
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
+                ) {
+                    Text("Add to Cart • ₹$finalPrice", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { customizingProduct = null }) {
+                    Text("Cancel", color = Color.Gray)
+                }
+            },
+            shape = RoundedCornerShape(18.dp),
+            containerColor = Color.White
+        )
+    }
+
+    // --- WRITE REAL-TIME REVIEW DIALOG ---
+    if (showWriteReviewDialog) {
+        AlertDialog(
+            onDismissRequest = { showWriteReviewDialog = false },
+            title = {
+                Text("Write a Review for ${vendor.name} ⭐", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Charcoal)
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("YOUR RATING:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        (1..5).forEach { star ->
+                            Icon(
+                                imageVector = if (star <= reviewRatingScore) Icons.Default.Star else Icons.Default.StarBorder,
+                                contentDescription = "$star Stars",
+                                tint = GoldPremium,
+                                modifier = Modifier
+                                    .size(30.dp)
+                                    .clickable { reviewRatingScore = star.toDouble() }
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("${reviewRatingScore.toInt()}.0 / 5.0", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Charcoal)
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text("YOUR NAME (OPTIONAL):", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = reviewAuthorName,
+                        onValueChange = { reviewAuthorName = it },
+                        placeholder = { Text("Your Name", fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true,
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.5.sp, color = Charcoal)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text("YOUR EXPERIENCE & FEEDBACK:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = reviewCommentText,
+                        onValueChange = { reviewCommentText = it },
+                        placeholder = { Text("How was the washing quality, pickup speed, and packaging?", fontSize = 11.5.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        maxLines = 3,
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = Charcoal)
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (reviewCommentText.isNotBlank()) {
+                            vm.addVendorReview(
+                                vendorId = vendor.id,
+                                author = reviewAuthorName.ifBlank { "You" },
+                                rating = reviewRatingScore,
+                                comment = reviewCommentText.trim()
+                            )
+                            showWriteReviewDialog = false
+                            reviewCommentText = ""
+                            Toast.makeText(context, "Review posted successfully! ⭐", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Please write a comment", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
+                ) {
+                    Text("Submit Review ⭐", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showWriteReviewDialog = false }) {
+                    Text("Cancel", color = Color.Gray)
+                }
+            },
+            shape = RoundedCornerShape(18.dp),
+            containerColor = Color.White
+        )
+    }
+
+    Scaffold(
+        bottomBar = {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color.White,
+                shadowElevation = 12.dp,
+                border = BorderStroke(1.dp, Color(0xFFEEEEEE))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                ) {
+                    val totalCartCount = cartItems.sumOf { it.quantity }
+                    val totalCartPrice = cartItems.sumOf { it.discountPrice * it.quantity }.toInt()
+
+                    if (totalCartCount > 0) {
+                        Button(
+                            onClick = {
+                                vm.navigateTo(ApnaDhobiScreen.SlotSelection)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "🧺 $totalCartCount Items • ₹$totalCartPrice",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = "Proceed to Pickup ➔",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                if (selectedTabIndex != 1) {
+                                    selectedTabIndex = 1
+                                    Toast.makeText(context, "Please select services or clothes to book! 🧺", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Tap 'ADD +' on any item below to add into your laundry bucket!", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
+                        ) {
+                            Text(
+                                text = "Select Services to Book ➔",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
+            }
         }
     ) { innerPadding ->
-        Box(modifier = Modifier.padding(innerPadding)) {
-            Text("Vendor Shop Details", modifier = Modifier.padding(16.dp))
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .background(Color.White)
+        ) {
+            // 1. TOP HERO MEDIA HEADER (Interactive Swipeable Image Slider + Real Actions + Thumbnails)
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp)
+                ) {
+                    // Main Swipeable Store Photo Slider
+                    HorizontalPager(
+                        state = pagerState,
+                        modifier = Modifier.fillMaxSize()
+                    ) { page ->
+                        val currentImg = allStoreImages.getOrNull(page)
+                        if (currentImg != null) {
+                            com.example.ui.ApnaNetworkImage(
+                                url = currentImg,
+                                contentDescription = "${vendor.name} photo $page",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Brush.verticalGradient(listOf(RoyalBlue, SaffronOrange))),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = vendor.logoText.ifBlank { vendor.name.take(3).uppercase() },
+                                    color = Color.White.copy(alpha = 0.4f),
+                                    fontSize = 48.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                        }
+                    }
+
+                    // Scrim gradient for contrast
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color.Black.copy(alpha = 0.50f),
+                                        Color.Transparent,
+                                        Color.Black.copy(alpha = 0.65f)
+                                    )
+                                )
+                            )
+                    )
+
+                    // Top Action Bar placed high with statusBarsPadding (Back, Share, Heart Favorite)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clickable { vm.navigateBack() },
+                            shape = CircleShape,
+                            color = Color.White.copy(alpha = 0.92f),
+                            shadowElevation = 4.dp
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Back",
+                                    tint = Charcoal,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clickable {
+                                        val sendIntent = Intent().apply {
+                                            action = Intent.ACTION_SEND
+                                            putExtra(
+                                                Intent.EXTRA_TEXT,
+                                                "Check out ${vendor.name} on Apna Dhobi! ⭐ ${vendor.rating} ★ - Top-rated laundry & fabric care with free doorstep pickup: https://apnadhobi.app/store/${vendor.id}"
+                                            )
+                                            type = "text/plain"
+                                        }
+                                        context.startActivity(Intent.createChooser(sendIntent, "Share ${vendor.name}"))
+                                    },
+                                shape = CircleShape,
+                                color = Color.White.copy(alpha = 0.92f),
+                                shadowElevation = 4.dp
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.Share,
+                                        contentDescription = "Share",
+                                        tint = Charcoal,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+
+                            Surface(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clickable {
+                                        vm.toggleFavoriteVendor(vendor.id)
+                                    },
+                                shape = CircleShape,
+                                color = Color.White.copy(alpha = 0.92f),
+                                shadowElevation = 4.dp
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = if (isFav) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                        contentDescription = "Favorite",
+                                        tint = if (isFav) Color.Red else Charcoal,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Bottom Gallery Thumbnails Overlay (Clicking selects the active slide!)
+                    LazyRow(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(start = 14.dp, bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        itemsIndexed(allStoreImages.take(5)) { index, thumbUrl ->
+                            val isCurrentPage = pagerState.currentPage == index
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .border(
+                                        width = if (isCurrentPage) 2.5.dp else 1.dp,
+                                        color = if (isCurrentPage) SaffronOrange else Color.White,
+                                        shape = RoundedCornerShape(8.dp)
+                                    )
+                                    .clickable {
+                                        coroutineScope.launch {
+                                            pagerState.animateScrollToPage(index)
+                                        }
+                                    }
+                            ) {
+                                com.example.ui.ApnaNetworkImage(
+                                    url = thumbUrl,
+                                    contentDescription = "Store photo thumb $index",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                                if (index == 4 && allStoreImages.size > 5) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color.Black.copy(alpha = 0.65f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = "+${allStoreImages.size - 4}",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.5.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. VENDOR INFO & METADATA (Matching Image 3 Layout)
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                ) {
+                    // Category Badge & Star Rating Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = SaffronOrange.copy(alpha = 0.12f)
+                        ) {
+                            Text(
+                                text = vendor.categoryTag.ifBlank { "Laundry" },
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SaffronOrange,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { selectedTabIndex = 3 }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = GoldPremium,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "${vendor.rating}",
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Charcoal
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "(${vendor.ratingCount} reviews)",
+                                fontSize = 12.sp,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Store / Vendor Name
+                    Text(
+                        text = vendor.name,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Charcoal,
+                        letterSpacing = (-0.2).sp
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Address Text
+                    Text(
+                        text = vendor.address.ifBlank { "1012 Ocean Avenue, Sector 4, New Delhi, India" },
+                        fontSize = 12.5.sp,
+                        color = Color.Gray,
+                        lineHeight = 16.sp
+                    )
+                }
+            }
+
+            // 3. TABS ROW (About | Services | Gallery | Reviews)
+            item {
+                TabRow(
+                    selectedTabIndex = selectedTabIndex,
+                    containerColor = Color.White,
+                    contentColor = SaffronOrange,
+                    indicator = { tabPositions ->
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                            color = SaffronOrange,
+                            height = 3.dp
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    tabTitles.forEachIndexed { index, title ->
+                        Tab(
+                            selected = selectedTabIndex == index,
+                            onClick = { selectedTabIndex = index },
+                            text = {
+                                Text(
+                                    text = title,
+                                    fontSize = 13.5.sp,
+                                    fontWeight = if (selectedTabIndex == index) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (selectedTabIndex == index) SaffronOrange else Color.Gray
+                                )
+                            }
+                        )
+                    }
+                }
+                HorizontalDivider(color = Color(0xFFF0F0F0), thickness = 1.dp)
+            }
+
+            // 4. TAB CONTENTS
+            when (selectedTabIndex) {
+                // TAB 0: ABOUT
+                0 -> {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = "About",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Charcoal
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            val fullDesc = vendor.description.ifBlank {
+                                "Apna Dhobi Express provides top-quality laundry, dry cleaning, steam ironing, and fabric restoration services. We use eco-friendly detergents, German automated washing machines, and customized fabric care cycles to ensure complete cleanliness, germ protection, and fresh fragrance."
+                            }
+                            Text(
+                                text = if (isReadMore) fullDesc else fullDesc.take(130) + (if (fullDesc.length > 130) "..." else ""),
+                                fontSize = 12.5.sp,
+                                color = Charcoal.copy(alpha = 0.8f),
+                                lineHeight = 18.sp
+                            )
+                            if (fullDesc.length > 130) {
+                                Text(
+                                    text = if (isReadMore) "Read less" else "Read more",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SaffronOrange,
+                                    modifier = Modifier
+                                        .clickable { isReadMore = !isReadMore }
+                                        .padding(top = 2.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            // "Service Provider" Section (Matching Image 3)
+                            Text(
+                                text = "Service Provider",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Charcoal
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                                color = Color.White,
+                                border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
+                                shadowElevation = 1.dp
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Surface(
+                                        modifier = Modifier.size(46.dp),
+                                        shape = CircleShape,
+                                        color = SaffronOrange.copy(alpha = 0.15f)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Person,
+                                                contentDescription = "Provider",
+                                                tint = SaffronOrange,
+                                                modifier = Modifier.size(26.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = vendor.providerName.ifBlank { "Jenny Wilson" },
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Charcoal
+                                        )
+                                        Text(
+                                            text = vendor.providerRole.ifBlank { "Service Provider & Fabric Lead" },
+                                            fontSize = 11.5.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+
+                                    // Quick Chat & Call Buttons
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Surface(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clickable {
+                                                    Toast.makeText(context, "Opening direct support chat with ${vendor.providerName} 💬", Toast.LENGTH_SHORT).show()
+                                                },
+                                            shape = CircleShape,
+                                            color = RoyalBlue.copy(alpha = 0.12f)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.ChatBubbleOutline,
+                                                    contentDescription = "Chat",
+                                                    tint = RoyalBlue,
+                                                    modifier = Modifier.size(17.dp)
+                                                )
+                                            }
+                                        }
+
+                                        Surface(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .clickable {
+                                                    try {
+                                                        val dialIntent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${vendor.providerPhone.ifBlank { "+919871122334" }}"))
+                                                        context.startActivity(dialIntent)
+                                                    } catch (e: Exception) {
+                                                        Toast.makeText(context, "Calling ${vendor.providerPhone} 📞", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                },
+                                            shape = CircleShape,
+                                            color = SaffronOrange.copy(alpha = 0.12f)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Phone,
+                                                    contentDescription = "Call",
+                                                    tint = SaffronOrange,
+                                                    modifier = Modifier.size(17.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            // Key Store Guarantees
+                            Text(
+                                text = "Service Guarantees",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Charcoal
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            val guarantees = listOf(
+                                "🌱 100% Eco-Friendly Detergents",
+                                "🛡️ Antimicrobial & Germ-Free Sanitization",
+                                "⚡ Express Doorstep Pickup & Delivery",
+                                "👔 Individual Hydro-Carbon Gentle Fabric Care"
+                            )
+                            guarantees.forEach { itemText ->
+                                Row(
+                                    modifier = Modifier.padding(vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = itemText,
+                                        fontSize = 12.5.sp,
+                                        color = Charcoal.copy(alpha = 0.85f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // TAB 1: SERVICES (Products from ViewModel + Category Filtering + Customizer)
+                1 -> {
+                    item {
+                        // Category Filter Chips
+                        val filterCategories = listOf("All", "laundry", "dry_cleaning", "ironing", "shoe_cleaning", "blanket_wash", "wedding_wear", "premium_care")
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(filterCategories) { filterKey ->
+                                val label = when (filterKey) {
+                                    "All" -> "All Services"
+                                    "laundry" -> "Wash & Fold"
+                                    "dry_cleaning" -> "Dry Clean"
+                                    "ironing" -> "Steam Press"
+                                    "shoe_cleaning" -> "Shoe Spa"
+                                    "blanket_wash" -> "Blankets"
+                                    "wedding_wear" -> "Wedding Wear"
+                                    "premium_care" -> "Delicates"
+                                    else -> filterKey
+                                }
+                                val isSelected = selectedCategoryFilter == filterKey
+                                Surface(
+                                    modifier = Modifier.clickable { selectedCategoryFilter = filterKey },
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = if (isSelected) SaffronOrange else Color(0xFFF3F4F6),
+                                    border = BorderStroke(1.dp, if (isSelected) SaffronOrange else Color.Transparent)
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) Color.White else Charcoal,
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    val filteredProds = if (selectedCategoryFilter == "All") {
+                        products
+                    } else {
+                        products.filter { it.categoryId == selectedCategoryFilter }
+                    }
+
+                    items(filteredProds) { prod ->
+                        val inCart = cartItems.find { it.productId == prod.id }
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp)
+                                .clickable {
+                                    customizingProduct = prod
+                                    itemQuantity = inCart?.quantity ?: 1
+                                    fabricInquiryText = ""
+                                },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = BorderStroke(1.dp, Color(0xFFF0F0F0)),
+                            elevation = CardDefaults.cardElevation(1.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    modifier = Modifier.size(44.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = SaffronOrange.copy(alpha = 0.10f)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.LocalLaundryService,
+                                            contentDescription = null,
+                                            tint = SaffronOrange,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = prod.name,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp,
+                                        color = Charcoal
+                                    )
+                                    Text(
+                                        text = "⚡ ${prod.deliveryEstimate}",
+                                        fontSize = 11.sp,
+                                        color = Color.Gray
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "₹${prod.discountPrice.toInt()}",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
+                                            color = SaffronOrange
+                                        )
+                                        if (prod.originalPrice > prod.discountPrice) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "₹${prod.originalPrice.toInt()}",
+                                                fontSize = 11.sp,
+                                                color = Color.Gray,
+                                                style = androidx.compose.ui.text.TextStyle(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                if (inCart == null) {
+                                    Button(
+                                        onClick = {
+                                            customizingProduct = prod
+                                            itemQuantity = 1
+                                            fabricInquiryText = ""
+                                        },
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
+                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)
+                                    ) {
+                                        Text("ADD +", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                } else {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(
+                                            onClick = { vm.removeProductFromCart(prod, vendor) },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.RemoveCircleOutline,
+                                                contentDescription = "Remove",
+                                                tint = SaffronOrange,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        Text(
+                                            text = "${inCart.quantity}",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
+                                            modifier = Modifier.padding(horizontal = 6.dp)
+                                        )
+                                        IconButton(
+                                            onClick = { vm.addProductToCart(prod, vendor) },
+                                            modifier = Modifier.size(28.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Default.AddCircle,
+                                                contentDescription = "Add",
+                                                tint = SaffronOrange,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // TAB 2: GALLERY
+                2 -> {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = "Store & Equipment Gallery",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Charcoal
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            allStoreImages.forEachIndexed { idx, imgUrl ->
+                                val caption = when (idx) {
+                                    0 -> "Main Store Front & Counter"
+                                    1 -> "Advanced German Washer Extractors"
+                                    2 -> "Steam Ironing & Wrinkle-Free Press Station"
+                                    3 -> "Clean Garment Packaging & Wardrobe Hangers"
+                                    else -> "Laundry Hygiene Facility"
+                                }
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 12.dp),
+                                    shape = RoundedCornerShape(14.dp),
+                                    elevation = CardDefaults.cardElevation(2.dp)
+                                ) {
+                                    Column {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(160.dp)
+                                        ) {
+                                            com.example.ui.ApnaNetworkImage(
+                                                url = imgUrl,
+                                                contentDescription = caption,
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        }
+                                        Text(
+                                            text = caption,
+                                            fontSize = 12.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Charcoal,
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // TAB 3: REVIEWS (Real-Time Live Reviews & Write Review)
+                3 -> {
+                    item {
+                        val vendorReviews = reviewsMap[vendor.id] ?: reviewsMap["vendor_1"] ?: emptyList()
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Customer Reviews & Ratings",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Charcoal
+                                )
+                                Button(
+                                    onClick = { showWriteReviewDialog = true },
+                                    shape = RoundedCornerShape(20.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                ) {
+                                    Text("Write Review ✍️", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Overall Score Summary Card
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = LightCream,
+                                border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text("${vendor.rating}", fontSize = 28.sp, fontWeight = FontWeight.Black, color = Charcoal)
+                                        Row {
+                                            repeat(5) {
+                                                Icon(Icons.Default.Star, contentDescription = null, tint = GoldPremium, modifier = Modifier.size(14.dp))
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text("${vendor.ratingCount} Ratings", fontSize = 11.sp, color = Color.Gray)
+                                    }
+
+                                    Spacer(modifier = Modifier.width(20.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        listOf(
+                                            "5 ★" to 0.85f,
+                                            "4 ★" to 0.12f,
+                                            "3 ★" to 0.03f
+                                        ).forEach { (starLabel, progress) ->
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(vertical = 1.dp)
+                                            ) {
+                                                Text(starLabel, fontSize = 10.sp, color = Color.Gray, modifier = Modifier.width(22.dp))
+                                                LinearProgressIndicator(
+                                                    progress = { progress },
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .height(6.dp)
+                                                        .clip(RoundedCornerShape(3.dp)),
+                                                    color = SaffronOrange,
+                                                    trackColor = Color(0xFFE5E7EB)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            // Customer reviews list
+                            vendorReviews.forEach { review ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 10.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    border = BorderStroke(1.dp, Color(0xFFF0F0F0))
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Surface(
+                                                    modifier = Modifier.size(24.dp),
+                                                    shape = CircleShape,
+                                                    color = SaffronOrange.copy(alpha = 0.15f)
+                                                ) {
+                                                    Box(contentAlignment = Alignment.Center) {
+                                                        Text(review.author.take(1).uppercase(), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SaffronOrange)
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(text = review.author, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Charcoal)
+                                                if (review.verified) {
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("✓ Verified", fontSize = 10.sp, color = GreenSuccess, fontWeight = FontWeight.Medium)
+                                                }
+                                            }
+
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("${review.rating.toInt()} ★", color = GoldPremium, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(review.date, fontSize = 10.5.sp, color = Color.Gray)
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(text = review.comment, fontSize = 12.sp, color = Charcoal.copy(alpha = 0.85f), lineHeight = 16.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(20.dp))
+            }
         }
     }
 }
@@ -2708,11 +5235,37 @@ fun CartScreenContent(vm: ApnaDhobiViewModel) {
                                     fontSize = 14.sp,
                                     color = Charcoal
                                 )
+                                if (item.dryCleaningType.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(4.dp),
+                                        color = RoyalBlue.copy(alpha = 0.1f)
+                                    ) {
+                                        Text(
+                                            text = item.dryCleaningType,
+                                            color = RoyalBlue,
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                                if (!item.userNotes.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = "Note: ${item.userNotes}",
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF64748B),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "₹${item.discountPrice} / item",
+                                    text = "₹${item.discountPrice.toInt()} / item",
                                     color = SaffronOrange,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3062,8 +5615,8 @@ fun PromoBannerSlider(banners: List<BannerDto>) {
             ) {
                 Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
                     Column {
-                        Text(b.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text(b.subtitle, color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+                        Text(b.title ?: "", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(b.subtitle ?: "", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
                     }
                 }
             }

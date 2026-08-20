@@ -3927,13 +3927,17 @@ fun AdminPremiumDashboard(vm: ApnaDhobiViewModel) {
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Column(modifier = Modifier.weight(1f)) {
-                                                    Text(text = banner.title, fontWeight = FontWeight.ExtraBold, color = RoyalBlue, fontSize = 13.sp)
-                                                    Text(text = banner.subtitle, fontSize = 11.sp, color = Color.DarkGray)
+                                                    Text(text = banner.title ?: "", fontWeight = FontWeight.ExtraBold, color = RoyalBlue, fontSize = 13.sp)
+                                                    Text(text = banner.subtitle ?: "", fontSize = 11.sp, color = Color.DarkGray)
                                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                        Surface(color = SaffronOrange.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp)) {
-                                                            Text(text = "Code: ${banner.code}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SaffronOrange, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                                        if (!banner.code.isNullOrBlank()) {
+                                                            Surface(color = SaffronOrange.copy(alpha = 0.15f), shape = RoundedCornerShape(4.dp)) {
+                                                                Text(text = "Code: ${banner.code}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SaffronOrange, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                                                            }
                                                         }
-                                                        Text(text = "• ${banner.badge}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = GreenSuccess)
+                                                        if (!banner.badge.isNullOrBlank()) {
+                                                            Text(text = "• ${banner.badge}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = GreenSuccess)
+                                                        }
                                                     }
                                                 }
 
