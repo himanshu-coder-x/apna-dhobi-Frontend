@@ -1,5 +1,8 @@
 package com.example.ui
 
+import com.example.UniversalAppImage
+import com.example.DeliveryTruckGraphic
+import com.example.ApnaDhobiBrandLogo
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
@@ -479,7 +482,7 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                                     Switch(checked = isHindi, onCheckedChange = { vm.isHindi.value = it })
                                 }
 
-                                Divider(modifier = Modifier.padding(vertical = 8.dp))
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -2238,6 +2241,29 @@ fun VendorPremiumDashboard(vm: ApnaDhobiViewModel) {
                                     Spacer(modifier = Modifier.height(4.dp))
                                     Text("Bucket items: ${order.itemsSummary}", fontSize = 13.sp, color = Color.Gray)
                                     
+                                    if (!order.userNotes.isNullOrBlank()) {
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            color = Color(0xFFFEF9C3),
+                                            border = BorderStroke(1.dp, Color(0xFFFEF08A))
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text("📝", fontSize = 11.sp)
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "Instructions: ${order.userNotes}",
+                                                    fontSize = 11.sp,
+                                                    color = Color(0xFF854D0E),
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                            }
+                                        }
+                                    }
+                                    
                                     // Operational Inputs for Vendor
                                     Spacer(modifier = Modifier.height(10.dp))
                                     Row(
@@ -2416,7 +2442,8 @@ fun VendorPremiumDashboard(vm: ApnaDhobiViewModel) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(prod.name, fontWeight = FontWeight.Bold)
                                     Text("Category: ${prod.categoryId}", fontSize = 11.sp, color = Color.Gray)
-                                    Text("MRP Price: ₹${prod.originalPrice.toInt()} • Discount Price: ₹${prod.discountPrice.toInt()}", fontSize = 12.sp, color = SaffronOrange, fontWeight = FontWeight.Bold)
+                                    Text("Base Price: ₹${prod.discountPrice.toInt()}", fontSize = 12.sp, color = SaffronOrange, fontWeight = FontWeight.Bold)
+                                    Text("Treatments: Standard (+₹0) • Delicate Silk (+₹50) • Heavy Bead (+₹100)", fontSize = 10.sp, color = RoyalBlue, fontWeight = FontWeight.SemiBold)
                                 }
 
                                 Row {
@@ -2762,6 +2789,7 @@ fun AdminPremiumDashboard(vm: ApnaDhobiViewModel) {
                     ) {
                         val sidebarItems = listOf(
                             Pair("stats", Pair(Icons.Default.Assessment, "Overview Stats")),
+                            Pair("brand_logo", Pair(Icons.Default.Image, "App Brand Logo")),
                             Pair("vendors", Pair(Icons.Default.Storefront, "Vendor Approvals")),
                             Pair("orders", Pair(Icons.Default.LocalShipping, "Orders Terminal")),
                             Pair("users", Pair(Icons.Default.People, "Users Directory")),
@@ -2888,6 +2916,7 @@ fun AdminPremiumDashboard(vm: ApnaDhobiViewModel) {
                                     Text(
                                         text = when (activeAdminPanelTab) {
                                             "stats" -> "PLATFORM OVERVIEW & INSIGHTS 📊"
+                                            "brand_logo" -> "APP BRAND LOGO & ASSETS 🎨"
                                             "vendors" -> "MULTI-VENDOR SHOPS & SERVICES 🏪"
                                             "orders" -> "MASTER BOOKING ORDERS TRACKER 📦"
                                             "users" -> "CLIENT PROFILES DIRECTORY 👥"
@@ -4175,6 +4204,10 @@ fun AdminPremiumDashboard(vm: ApnaDhobiViewModel) {
                         }
                     }
 
+                    "brand_logo" -> {
+                        BrandLogoAdminSubPanel(vm)
+                    }
+
                     "mail_diagnostics" -> {
                         EmailConfigSubPanel(vm)
                     }
@@ -4511,11 +4544,8 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                             ) {
                                 Button(
                                     onClick = {
-                                        scope.launch {
-                                            vm.repository.updateOrderStatus(ran.id, "Out for Delivery (Rohan 🛵)")
-                                            vm.pushSimulatedNotification("Order #${ran.id} status updated: Out for Delivery 🛵")
-                                            Toast.makeText(context, "Order #${ran.id} is now Out for Delivery! 🛵", Toast.LENGTH_SHORT).show()
-                                        }
+                                        vm.updateOrderStatusDirectly(ran.id, "Out for Delivery")
+                                        Toast.makeText(context, "Order #${ran.id} is now Out for Delivery! Tracking active 🛵", Toast.LENGTH_SHORT).show()
                                     },
                                     modifier = Modifier.weight(1.1f),
                                     colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
@@ -4527,11 +4557,8 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                 
                                 Button(
                                     onClick = {
-                                        scope.launch {
-                                            vm.repository.updateOrderStatus(ran.id, "Delivered")
-                                            vm.pushSimulatedNotification("Order #${ran.id} successfully delivered to client! ✅")
-                                            Toast.makeText(context, "Order #${ran.id} marked as Delivered! ✅", Toast.LENGTH_SHORT).show()
-                                        }
+                                        vm.updateOrderStatusDirectly(ran.id, "Delivered")
+                                        Toast.makeText(context, "Order #${ran.id} marked as Delivered! ✅", Toast.LENGTH_SHORT).show()
                                     },
                                     modifier = Modifier.weight(1f),
                                     colors = ButtonDefaults.buttonColors(containerColor = GreenSuccess),
@@ -5319,5 +5346,855 @@ fun GoogleMapsSubPanel(vm: ApnaDhobiViewModel) {
             }
         }
         Spacer(modifier = Modifier.height(80.dp))
+    }
+}
+
+// ==========================================
+// BRAND IDENTITY, LOGO CRUD & VEHICLE / BANNER GRAPHICS STUDIO (ADMIN PANEL)
+// ==========================================
+@Composable
+fun BrandLogoAdminSubPanel(vm: ApnaDhobiViewModel) {
+    val brandNamePrimary by vm.adminBrandNamePrimary.collectAsState()
+    val brandNameSecondary by vm.adminBrandNameSecondary.collectAsState()
+    val brandTagline by vm.adminBrandTagline.collectAsState()
+    val currentLogoUrl by vm.adminBrandLogoUrl.collectAsState()
+    val isBrandLogoVisible by vm.adminIsBrandLogoVisible.collectAsState()
+    val defaultVehicleUrl by vm.adminDefaultVehicleGraphicUrl.collectAsState()
+    val vehiclePreset by vm.adminVehicleIconPreset.collectAsState()
+    val promoBanners by vm.loginPromoBanners.collectAsState()
+
+    var inputPrimaryName by remember(brandNamePrimary) { mutableStateOf(brandNamePrimary) }
+    var inputSecondaryName by remember(brandNameSecondary) { mutableStateOf(brandNameSecondary) }
+    var inputTagline by remember(brandTagline) { mutableStateOf(brandTagline) }
+    var inputLogoUrl by remember(currentLogoUrl) { mutableStateOf(currentLogoUrl) }
+    var inputVehicleUrl by remember(defaultVehicleUrl) { mutableStateOf(defaultVehicleUrl) }
+
+    // System Image Picker Launchers for Gallery/Storage Upload
+    val logoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        uri?.let {
+            val uriStr = it.toString()
+            inputLogoUrl = uriStr
+            vm.updateBrandLogo(uriStr)
+        }
+    }
+
+    val vehiclePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        uri?.let {
+            val uriStr = it.toString()
+            inputVehicleUrl = uriStr
+            vm.updateVehicleGraphic(uriStr)
+        }
+    }
+
+    // Dialog state for Add / Edit Promo Banner
+    var showBannerDialog by remember { mutableStateOf(false) }
+    var editingBannerId by remember { mutableStateOf<String?>(null) }
+    var bannerTitle by remember { mutableStateOf("") }
+    var bannerSubtitle by remember { mutableStateOf("") }
+    var bannerDescription by remember { mutableStateOf("") }
+    var bannerCode by remember { mutableStateOf("") }
+    var bannerImageUrl by remember { mutableStateOf("") }
+
+    val bannerImagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        uri?.let {
+            bannerImageUrl = it.toString()
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // CARD 1: BRAND LOGO & IDENTITY (FULL CRUD & UPLOAD/LINK)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(3.dp),
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            modifier = Modifier.size(40.dp),
+                            shape = CircleShape,
+                            color = Color(0xFFEFF6FF)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Image,
+                                    contentDescription = null,
+                                    tint = RoyalBlue,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Brand Logo & Identity Studio",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Charcoal
+                            )
+                            Text(
+                                text = "Manage logo, upload files, hide/show & update titles",
+                                fontSize = 12.sp,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Show / Hide Logo Toggle Switch Row
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Brand Logo Visibility (App-wide)",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Charcoal
+                            )
+                            Text(
+                                text = if (isBrandLogoVisible) "Currently VISIBLE on Splash & Headers 🟢" else "Currently HIDDEN across App 🔴",
+                                fontSize = 11.sp,
+                                color = if (isBrandLogoVisible) Color(0xFF16A34A) else Color(0xFFEF4444)
+                            )
+                        }
+                        Switch(
+                            checked = isBrandLogoVisible,
+                            onCheckedChange = { vm.toggleBrandLogoVisibility(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = RoyalBlue
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Live Preview Badge
+                Text(
+                    text = "LIVE BRAND PREVIEW",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = SaffronOrange,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (isBrandLogoVisible) {
+                    Surface(
+                        modifier = Modifier.size(130.dp),
+                        shape = CircleShape,
+                        color = Color.White,
+                        border = BorderStroke(2.dp, SaffronOrange.copy(alpha = 0.5f)),
+                        shadowElevation = 6.dp
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            ApnaDhobiBrandLogo(
+                                modifier = Modifier
+                                    .size(115.dp)
+                                    .padding(10.dp),
+                                customLogoUrl = currentLogoUrl.ifBlank { null }
+                            )
+                        }
+                    }
+                } else {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth(0.6f)
+                            .padding(vertical = 12.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFFEE2E2)
+                    ) {
+                        Text(
+                            text = "🚫 Brand Logo is Hidden",
+                            color = Color(0xFF991B1B),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(8.dp),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = inputPrimaryName,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
+                        color = RoyalBlue
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = inputSecondaryName,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
+                        color = SaffronOrange
+                    )
+                }
+                Text(
+                    text = inputTagline,
+                    fontSize = 12.sp,
+                    color = Color(0xFF64748B)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Upload from Device or Web URL for Logo
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = { logoPickerLauncher.launch("image/*") },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F3E88))
+                    ) {
+                        Icon(Icons.Default.UploadFile, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Upload from Device 📁", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            inputLogoUrl = ""
+                            vm.removeBrandLogo()
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFFEF4444))
+                    ) {
+                        Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Remove / Clear Logo", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFEF4444))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Custom Logo URL Input
+                OutlinedTextField(
+                    value = inputLogoUrl,
+                    onValueChange = { inputLogoUrl = it },
+                    label = { Text("Or Paste Brand Logo Image URL (PNG / JPG / WebP)") },
+                    placeholder = { Text("https://example.com/brand-logo.png") },
+                    leadingIcon = { Icon(Icons.Default.Link, contentDescription = null, tint = RoyalBlue) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = RoyalBlue,
+                        unfocusedBorderColor = Color(0xFFCBD5E1)
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Input Fields Row: Primary & Secondary Name
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedTextField(
+                        value = inputPrimaryName,
+                        onValueChange = { inputPrimaryName = it },
+                        label = { Text("Primary Name") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = RoyalBlue,
+                            unfocusedBorderColor = Color(0xFFCBD5E1)
+                        )
+                    )
+                    OutlinedTextField(
+                        value = inputSecondaryName,
+                        onValueChange = { inputSecondaryName = it },
+                        label = { Text("Secondary Name") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = SaffronOrange,
+                            unfocusedBorderColor = Color(0xFFCBD5E1)
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // Tagline Input
+                OutlinedTextField(
+                    value = inputTagline,
+                    onValueChange = { inputTagline = it },
+                    label = { Text("Brand Tagline") },
+                    placeholder = { Text("We clean, you relax.") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = RoyalBlue,
+                        unfocusedBorderColor = Color(0xFFCBD5E1)
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            vm.updateBrandSettings(
+                                primaryName = inputPrimaryName.trim(),
+                                secondaryName = inputSecondaryName.trim(),
+                                tagline = inputTagline.trim(),
+                                logoUrl = inputLogoUrl.trim()
+                            )
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
+                    ) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Save Brand Identity", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            inputPrimaryName = "Apna"
+                            inputSecondaryName = "Dhobi"
+                            inputTagline = "We clean, you relax."
+                            inputLogoUrl = ""
+                            vm.updateBrandSettings("Apna", "Dhobi", "We clean, you relax.", "")
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, SaffronOrange)
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, tint = SaffronOrange, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Reset Default", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = SaffronOrange)
+                    }
+                }
+            }
+        }
+
+        // CARD 2: VEHICLE & BANNER GRAPHIC STUDIO (IMAGE 2 POINT)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(3.dp),
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        modifier = Modifier.size(40.dp),
+                        shape = CircleShape,
+                        color = Color(0xFFEFF6FF)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.LocalShipping,
+                                contentDescription = null,
+                                tint = RoyalBlue,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Vehicle & Banner Icon Studio",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Charcoal
+                        )
+                        Text(
+                            text = "Upload custom delivery vehicle graphic or set web link",
+                            fontSize = 12.sp,
+                            color = Color(0xFF64748B)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Vehicle Live Preview Box
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFFFFFBEF), RoundedCornerShape(14.dp))
+                        .border(1.dp, Color(0xFFFFE0B2), RoundedCornerShape(14.dp))
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("CURRENT VEHICLE GRAPHIC", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = SaffronOrange)
+                        Text(
+                            text = if (defaultVehicleUrl.isNotBlank()) "Custom Uploaded Graphic Active" else "Official Delivery Truck Vector",
+                            fontSize = 12.sp,
+                            color = Charcoal,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    Surface(
+                        modifier = Modifier.size(width = 86.dp, height = 54.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color.White,
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            UniversalAppImage(
+                                model = defaultVehicleUrl,
+                                contentDescription = "Vehicle Preview",
+                                modifier = Modifier.fillMaxSize().padding(4.dp),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                            ) {
+                                DeliveryTruckGraphic(
+                                    primaryName = brandNamePrimary,
+                                    secondaryName = brandNameSecondary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = { vehiclePickerLauncher.launch("image/*") },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
+                    ) {
+                        Icon(Icons.Default.UploadFile, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Upload Vehicle 🚚", fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            inputVehicleUrl = ""
+                            vm.updateVehicleGraphic("")
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(46.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFFCBD5E1))
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Reset Vector Truck", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedTextField(
+                    value = inputVehicleUrl,
+                    onValueChange = { inputVehicleUrl = it },
+                    label = { Text("Or Paste Vehicle Image URL (PNG / SVG / JPG)") },
+                    placeholder = { Text("https://example.com/delivery-truck.png") },
+                    leadingIcon = { Icon(Icons.Default.Link, contentDescription = null, tint = SaffronOrange) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = SaffronOrange,
+                        unfocusedBorderColor = Color(0xFFCBD5E1)
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Button(
+                    onClick = {
+                        vm.updateVehicleGraphic(inputVehicleUrl.trim())
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
+                ) {
+                    Text("Save Vehicle Graphic", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+
+        // CARD 3: PROMO BANNERS MANAGER (MAX 4 BANNERS WITH UPLOAD/LINK)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(3.dp),
+            border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            modifier = Modifier.size(40.dp),
+                            shape = CircleShape,
+                            color = Color(0xFFFFF7ED)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.ViewCarousel,
+                                    contentDescription = null,
+                                    tint = SaffronOrange,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Promo Banners Studio",
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Charcoal
+                            )
+                            Text(
+                                text = "Active Banners: ${promoBanners.size}/4 Maximum",
+                                fontSize = 12.sp,
+                                color = if (promoBanners.size >= 4) SaffronOrange else Color(0xFF16A34A),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            if (promoBanners.size >= 4) {
+                                vm.pushSimulatedNotification("Maximum 4 banners allowed! Please edit or delete one.")
+                            } else {
+                                editingBannerId = null
+                                bannerTitle = ""
+                                bannerSubtitle = ""
+                                bannerDescription = ""
+                                bannerCode = ""
+                                bannerImageUrl = ""
+                                showBannerDialog = true
+                            }
+                        },
+                        enabled = promoBanners.size < 4,
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Add Banner", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // List of Active Banners
+                promoBanners.forEachIndexed { index, banner ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 5.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEF)),
+                        border = BorderStroke(1.dp, Color(0xFFFFE0B2))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(28.dp),
+                                shape = CircleShape,
+                                color = RoyalBlue
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "${index + 1}",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = banner.title ?: "",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp,
+                                        color = Color(0xFF0F172A)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = banner.subtitle ?: "",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.5.sp,
+                                        color = SaffronOrange
+                                    )
+                                }
+                                Text(
+                                    text = banner.badge ?: "",
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFF64748B),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                if (!banner.code.isNullOrBlank()) {
+                                    Text(
+                                        text = "Code: ${banner.code}",
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = RoyalBlue
+                                    )
+                                }
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    editingBannerId = banner.id
+                                    bannerTitle = banner.title ?: ""
+                                    bannerSubtitle = banner.subtitle ?: ""
+                                    bannerDescription = banner.badge ?: ""
+                                    bannerCode = banner.code ?: ""
+                                    bannerImageUrl = banner.imageUrl ?: ""
+                                    showBannerDialog = true
+                                }
+                            ) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = RoyalBlue, modifier = Modifier.size(18.dp))
+                            }
+
+                            IconButton(
+                                onClick = {
+                                    vm.deleteLoginPromoBanner(banner.id)
+                                }
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Modal Dialog for Add / Edit Promo Banner with File Picker
+    if (showBannerDialog) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showBannerDialog = false }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(20.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = if (editingBannerId == null) "➕ Add New Promo Banner (Max 4)" else "✏️ Edit Promo Banner",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = RoyalBlue
+                    )
+
+                    OutlinedTextField(
+                        value = bannerTitle,
+                        onValueChange = { bannerTitle = it },
+                        label = { Text("Headline 1 (e.g. Free Pickup &)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = bannerSubtitle,
+                        onValueChange = { bannerSubtitle = it },
+                        label = { Text("Headline 2 (e.g. Return Delivery)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = bannerDescription,
+                        onValueChange = { bannerDescription = it },
+                        label = { Text("Description (e.g. Premium laundry...)") },
+                        singleLine = false,
+                        maxLines = 3,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    OutlinedTextField(
+                        value = bannerCode,
+                        onValueChange = { bannerCode = it },
+                        label = { Text("Promo Coupon Code (e.g. FREEPICKUP)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    // Upload Graphic from Storage Button
+                    Button(
+                        onClick = { bannerImagePickerLauncher.launch("image/*") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F3E88))
+                    ) {
+                        Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Upload Graphic from Device 📁", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    OutlinedTextField(
+                        value = bannerImageUrl,
+                        onValueChange = { bannerImageUrl = it },
+                        label = { Text("Or Paste Graphic Image URL (optional)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp)
+                    )
+
+                    if (bannerImageUrl.isNotBlank()) {
+                        Surface(
+                            modifier = Modifier
+                                .size(60.dp)
+                                .align(Alignment.CenterHorizontally),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0xFFCBD5E1))
+                        ) {
+                            coil.compose.AsyncImage(
+                                model = bannerImageUrl,
+                                contentDescription = "Thumbnail Preview",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = { showBannerDialog = false },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Cancel")
+                        }
+
+                        Button(
+                            onClick = {
+                                if (bannerTitle.isNotBlank()) {
+                                    if (editingBannerId == null) {
+                                        vm.addLoginPromoBanner(
+                                            title = bannerTitle,
+                                            subtitle = bannerSubtitle,
+                                            description = bannerDescription,
+                                            code = bannerCode,
+                                            imageUrl = bannerImageUrl
+                                        )
+                                    } else {
+                                        vm.updateLoginPromoBanner(
+                                            id = editingBannerId!!,
+                                            title = bannerTitle,
+                                            subtitle = bannerSubtitle,
+                                            description = bannerDescription,
+                                            code = bannerCode,
+                                            imageUrl = bannerImageUrl
+                                        )
+                                    }
+                                    showBannerDialog = false
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
+                        ) {
+                            Text("Save Banner", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
     }
 }

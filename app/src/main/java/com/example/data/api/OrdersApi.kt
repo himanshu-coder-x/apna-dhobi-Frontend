@@ -38,12 +38,13 @@ data class CreateOrderRequest(
     val useWallet: Boolean
 )
 
+@com.squareup.moshi.JsonClass(generateAdapter = true)
 data class OrderDto(
-    val id: String,
-    val itemsSummary: String,
-    val totalPrice: Double,
-    val pickupSlot: String,
-    val deliverySlot: String,
-    val status: String,
-    val paymentMethod: String
+    val id: String = "",
+    val itemsSummary: String = "",
+    val totalPrice: Double = 0.0,
+    val pickupSlot: String = "",
+    val deliverySlot: String = "",
+    val status: String = "Placed",
+    val paymentMethod: String = "UPI"
 )

@@ -26,6 +26,9 @@ interface CatalogApi {
     @DELETE("services/{id}")
     suspend fun deleteService(@Path("id") id: String): Response<Unit>
 
+    @GET("banners/public-config")
+    suspend fun getPublicConfig(): Response<Map<String, Any>>
+
     @GET("banners")
     suspend fun getBanners(): Response<List<BannerDto>>
 

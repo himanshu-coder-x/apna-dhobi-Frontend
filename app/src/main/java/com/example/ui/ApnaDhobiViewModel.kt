@@ -48,7 +48,8 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
         application,
         AppDatabase::class.java,
         "apna_dhobi_db"
-    ).fallbackToDestructiveMigration().build()
+    ).fallbackToDestructiveMigration(dropAllTables = true)
+     .build()
 
     private val dao = db.apnaDhobiDao()
     val repository = ApnaDhobiRepository(dao)
@@ -60,8 +61,8 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     // Global Loading State
     var isGlobalLoading = MutableStateFlow(false)
 
-    // Current Active Screen (Default to Home Dashboard for instant UI rendering)
-    private val _currentScreen = MutableStateFlow<ApnaDhobiScreen>(ApnaDhobiScreen.HomeFrame)
+    // Current Active Screen (Default to Splash Screen for smooth brand animation)
+    private val _currentScreen = MutableStateFlow<ApnaDhobiScreen>(ApnaDhobiScreen.Splash)
     val currentScreen: StateFlow<ApnaDhobiScreen> = _currentScreen.asStateFlow()
 
     // Navigation Stack for basic back pressed actions
@@ -75,6 +76,7 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     var loginMobileNumber = MutableStateFlow("")
     var loginOtp = MutableStateFlow("")
     var isOtpSent = MutableStateFlow(false)
+    var isRegistrationRequired = MutableStateFlow(false)
     var otpCountdown = MutableStateFlow(0) // Countdown in seconds
     var isLoggedIn = MutableStateFlow(true)
     var isHindi = MutableStateFlow(false)
@@ -404,8 +406,133 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     // Admin Custom Configuration State
     val adminCommissionPercent = MutableStateFlow(12)
     val adminSeoTitle = MutableStateFlow("Apna Dhobi - India's Premium On-Demand Laundry & Fabric Care App")
+    val adminBrandNamePrimary = MutableStateFlow("Apna")
+    val adminBrandNameSecondary = MutableStateFlow("Dhobi")
+    val adminBrandTagline = MutableStateFlow("We clean, you relax.")
+    val adminBrandLogoUrl = MutableStateFlow<String>("")
+    val adminIsBrandLogoVisible = MutableStateFlow<Boolean>(true)
+    val adminDefaultVehicleGraphicUrl = MutableStateFlow<String>("")
+    val adminVehicleIconPreset = MutableStateFlow<String>("truck")
     val deliveryPartners = MutableStateFlow(listOf("Rohan Sharma", "Vinod Yadav", "Amit Kumar"))
     val isAdminSessionActive = MutableStateFlow(false)
+
+    // Dynamic Login Screen Promo Banners (Max 4 banners)
+    val loginPromoBanners = MutableStateFlow<List<BannerDto>>(
+        listOf(
+            BannerDto(
+                id = "lp_1",
+                title = "Free Pickup &",
+                subtitle = "Return Delivery",
+                badge = "Premium laundry & dry cleaning\nat your doorstep",
+                code = "FREEPICKUP",
+                imageUrl = "",
+                isActive = true
+            ),
+            BannerDto(
+                id = "lp_2",
+                title = "24-Hour Express",
+                subtitle = "Superfast Wash",
+                badge = "Next day doorstep delivery\nwith fresh mountain fragrance",
+                code = "EXPRESS24",
+                imageUrl = "",
+                isActive = true
+            ),
+            BannerDto(
+                id = "lp_3",
+                title = "50% OFF",
+                subtitle = "First Booking Offer",
+                badge = "Use code DHOBI50 for instant\nhalf-price savings today",
+                code = "DHOBI50",
+                imageUrl = "",
+                isActive = true
+            ),
+            BannerDto(
+                id = "lp_4",
+                title = "100% Fabric Safe",
+                subtitle = "Eco Steam Care",
+                badge = "Gentle woolmark approved steam\nironing & antibacterial wash",
+                code = "ECOCARE",
+                imageUrl = "",
+                isActive = true
+            )
+        )
+    )
+
+    fun updateBrandSettings(primaryName: String, secondaryName: String, tagline: String, logoUrl: String) {
+        adminBrandNamePrimary.value = primaryName.ifBlank { "Apna" }
+        adminBrandNameSecondary.value = secondaryName.ifBlank { "Dhobi" }
+        adminBrandTagline.value = tagline.ifBlank { "We clean, you relax." }
+        adminBrandLogoUrl.value = logoUrl
+        pushSimulatedNotification("Brand Identity updated live across the entire App!")
+    }
+
+    fun updateBrandLogo(newLogoUrl: String) {
+        adminBrandLogoUrl.value = newLogoUrl
+        adminIsBrandLogoVisible.value = true
+        pushSimulatedNotification("App Brand Logo updated successfully from Admin Panel!")
+    }
+
+    fun toggleBrandLogoVisibility(visible: Boolean) {
+        adminIsBrandLogoVisible.value = visible
+        pushSimulatedNotification(if (visible) "Brand Logo is now visible across the App." else "Brand Logo is now hidden across the App.")
+    }
+
+    fun removeBrandLogo() {
+        adminBrandLogoUrl.value = ""
+        pushSimulatedNotification("Custom Brand Logo removed. Official logo active.")
+    }
+
+    fun updateVehicleGraphic(urlOrUri: String, preset: String = "truck") {
+        adminDefaultVehicleGraphicUrl.value = urlOrUri
+        adminVehicleIconPreset.value = preset
+        pushSimulatedNotification("Vehicle delivery graphic updated successfully!")
+    }
+
+    fun addLoginPromoBanner(title: String, subtitle: String, description: String, code: String, imageUrl: String) {
+        val currentList = loginPromoBanners.value.toMutableList()
+        if (currentList.size >= 4) {
+            pushSimulatedNotification("Maximum 4 banners allowed! Please edit or delete an existing banner.")
+            return
+        }
+        val newBanner = BannerDto(
+            id = "lp_${System.currentTimeMillis()}",
+            title = title.trim(),
+            subtitle = subtitle.trim(),
+            badge = description.trim(),
+            code = code.trim().ifBlank { "DHOBI" },
+            imageUrl = imageUrl.trim(),
+            isActive = true
+        )
+        currentList.add(newBanner)
+        loginPromoBanners.value = currentList
+        pushSimulatedNotification("New Promo Banner added successfully (${currentList.size}/4)!")
+    }
+
+    fun updateLoginPromoBanner(id: String, title: String, subtitle: String, description: String, code: String, imageUrl: String) {
+        val currentList = loginPromoBanners.value.map {
+            if (it.id == id) {
+                it.copy(
+                    title = title.trim(),
+                    subtitle = subtitle.trim(),
+                    badge = description.trim(),
+                    code = code.trim().ifBlank { "DHOBI" },
+                    imageUrl = imageUrl.trim()
+                )
+            } else it
+        }
+        loginPromoBanners.value = currentList
+        pushSimulatedNotification("Promo Banner updated successfully!")
+    }
+
+    fun deleteLoginPromoBanner(id: String) {
+        val currentList = loginPromoBanners.value.filter { it.id != id }
+        if (currentList.isEmpty()) {
+            pushSimulatedNotification("At least 1 banner must remain active!")
+            return
+        }
+        loginPromoBanners.value = currentList
+        pushSimulatedNotification("Promo Banner removed (${currentList.size}/4 remaining).")
+    }
 
     // Role helper
     val isCurrentUserAdmin = MutableStateFlow(false)
@@ -541,7 +668,7 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun initSocket() {
         try {
-            socket = IO.socket("http://10.0.2.2:3000")
+            socket = IO.socket("https://apna-dhobi-backend.onrender.com")
             socket?.on(Socket.EVENT_CONNECT) {
                 Log.d("SocketIO", "Connected to local server")
             }
@@ -649,25 +776,37 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun refreshWalletBalance() {
         viewModelScope.launch {
-            val balance = repository.fetchWalletBalance()
-            walletBalance.value = balance
+            try {
+                val balance = repository.fetchWalletBalance()
+                walletBalance.value = balance
+            } catch (e: Throwable) {
+                Log.e("ApnaDhobiViewModel", "refreshWalletBalance non-fatal error: ${e.message}")
+            }
         }
     }
 
     fun refreshOrders() {
         viewModelScope.launch {
-            val remoteOrders = repository.fetchOrders()
-            if (remoteOrders.isNotEmpty()) {
-                remoteOrders.forEach { repository.placeOrder(it) }
+            try {
+                val remoteOrders = repository.fetchOrders()
+                if (remoteOrders.isNotEmpty()) {
+                    remoteOrders.forEach { repository.placeOrder(it) }
+                }
+            } catch (e: Throwable) {
+                Log.e("ApnaDhobiViewModel", "refreshOrders non-fatal error: ${e.message}")
             }
         }
     }
 
     fun refreshVendorOrders() {
         viewModelScope.launch {
-            val remoteOrders = repository.fetchVendorOrders(selectedVendorId.value)
-            if (remoteOrders.isNotEmpty()) {
-                remoteOrders.forEach { repository.placeOrder(it) }
+            try {
+                val remoteOrders = repository.fetchVendorOrders(selectedVendorId.value)
+                if (remoteOrders.isNotEmpty()) {
+                    remoteOrders.forEach { repository.placeOrder(it) }
+                }
+            } catch (e: Throwable) {
+                Log.e("ApnaDhobiViewModel", "refreshVendorOrders non-fatal error: ${e.message}")
             }
         }
     }
@@ -843,6 +982,47 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     fun refreshCatalog() {
         viewModelScope.launch {
             try {
+                val publicConfig = repository.fetchPublicConfig()
+                if (publicConfig != null) {
+                    val pName = publicConfig["brandNamePrimary"] as? String
+                    val sName = publicConfig["brandNameSecondary"] as? String
+                    val tagline = publicConfig["brandTagline"] as? String
+                    val logoUrl = publicConfig["brandLogoUrl"] as? String
+                    val isLogoVisible = publicConfig["isBrandLogoVisible"] as? Boolean
+                    val vehicleUrl = publicConfig["vehicleGraphicUrl"] as? String
+
+                    if (!pName.isNullOrBlank()) adminBrandNamePrimary.value = pName
+                    if (!sName.isNullOrBlank()) adminBrandNameSecondary.value = sName
+                    if (!tagline.isNullOrBlank()) adminBrandTagline.value = tagline
+                    if (logoUrl != null) adminBrandLogoUrl.value = logoUrl
+                    if (isLogoVisible != null) adminIsBrandLogoVisible.value = isLogoVisible
+                    if (vehicleUrl != null) adminDefaultVehicleGraphicUrl.value = vehicleUrl
+
+                    val promoListRaw = publicConfig["loginPromoBanners"] as? List<Map<String, Any>>
+                    if (!promoListRaw.isNullOrEmpty()) {
+                        val parsed = promoListRaw.mapNotNull { item ->
+                            val id = item["id"] as? String ?: return@mapNotNull null
+                            val title = item["title"] as? String ?: ""
+                            val subtitle = item["subtitle"] as? String ?: ""
+                            val badge = item["badge"] as? String ?: ""
+                            val code = item["code"] as? String ?: ""
+                            val imageUrl = item["imageUrl"] as? String ?: ""
+                            BannerDto(
+                                id = id,
+                                title = title,
+                                subtitle = subtitle,
+                                badge = badge,
+                                code = code,
+                                imageUrl = imageUrl,
+                                isActive = true
+                            )
+                        }
+                        if (parsed.isNotEmpty()) {
+                            loginPromoBanners.value = parsed
+                        }
+                    }
+                }
+
                 val remoteBanners = repository.fetchBanners()
                 if (remoteBanners.isNotEmpty()) {
                     val topList = remoteBanners.filter { (it.position?.uppercase() ?: "TOP") == "TOP" }
@@ -896,9 +1076,13 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun refreshDeliveryPartners() {
         viewModelScope.launch {
-            val agents = repository.fetchDeliveryAgents()
-            if (agents.isNotEmpty()) {
-                deliveryPartners.value = agents
+            try {
+                val agents = repository.fetchDeliveryAgents()
+                if (agents.isNotEmpty()) {
+                    deliveryPartners.value = agents
+                }
+            } catch (e: Throwable) {
+                Log.e("ApnaDhobiViewModel", "refreshDeliveryPartners non-fatal error: ${e.message}")
             }
         }
     }
@@ -917,13 +1101,20 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    var postAuthDestination: ApnaDhobiScreen? = null
+
     // Navigation helper
     fun navigateTo(screen: ApnaDhobiScreen) {
-        screenStack.add(_currentScreen.value)
-        _currentScreen.value = screen
+        if (_currentScreen.value != screen) {
+            screenStack.add(_currentScreen.value)
+            _currentScreen.value = screen
+        }
     }
 
     fun navigateBack() {
+        while (screenStack.isNotEmpty() && screenStack.last() == _currentScreen.value) {
+            screenStack.removeAt(screenStack.size - 1)
+        }
         if (screenStack.isNotEmpty()) {
             _currentScreen.value = screenStack.removeAt(screenStack.size - 1)
         } else {
@@ -1087,7 +1278,21 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     fun updateCartItemDryCleaningType(itemId: String, type: String) {
         viewModelScope.launch {
             val existing = cartItems.value.find { it.id == itemId } ?: return@launch
-            repository.insertCartItem(existing.copy(dryCleaningType = type))
+            val extraCost = when {
+                type.contains("Silk", ignoreCase = true) -> 50.0
+                type.contains("Bead", ignoreCase = true) -> 100.0
+                else -> 0.0
+            }
+            val product = productsState.value.find { it.id == existing.productId }
+            val basePrice = product?.discountPrice ?: (existing.discountPrice - if (existing.dryCleaningType.contains("Silk")) 50.0 else if (existing.dryCleaningType.contains("Bead")) 100.0 else 0.0)
+            val baseOrig = product?.originalPrice ?: (existing.originalPrice - if (existing.dryCleaningType.contains("Silk")) 50.0 else if (existing.dryCleaningType.contains("Bead")) 100.0 else 0.0)
+            repository.insertCartItem(
+                existing.copy(
+                    dryCleaningType = type,
+                    originalPrice = baseOrig + extraCost,
+                    discountPrice = basePrice + extraCost
+                )
+            )
         }
     }
 
@@ -1114,9 +1319,13 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
         items.sumOf { it.originalPrice * it.quantity }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val cartDiscount = cartItems.map { items ->
+    val cartDiscount = combine(cartItems, appliedCoupon) { items, coupon ->
         val subTotal = items.sumOf { it.discountPrice * it.quantity }
-        if (appliedCoupon.value == "DHOBI20") subTotal * 0.20 else 0.0
+        when (coupon) {
+            "WELCOME20", "DHOBI20" -> subTotal * 0.20
+            "EXPRESS15" -> subTotal * 0.15
+            else -> 0.0
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     val deliveryFee = cartItems.map { items ->
@@ -1128,7 +1337,8 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     val cartFinalTotal = combine(cartSubTotal, cartDiscount, deliveryFee, gstAndTaxes) { sub, disc, dev, tax ->
-        sub - disc + dev + tax
+        val total = sub - disc + dev + tax
+        if (total < 0.0) 0.0 else total
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     // Complete Checkout Action
@@ -1279,10 +1489,26 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     fun updateOrderStatusDirectly(orderId: Int, status: String) {
         viewModelScope.launch {
             repository.updateOrderStatus(orderId, status)
-            if (status == "Out for Delivery") {
+            repository.updateOrderStatusRemote(orderId.toString(), status)
+            pushSimulatedNotification("Order #$orderId status updated: $status")
+            if (status.contains("Out for Delivery", ignoreCase = true)) {
                 startLocationTracking(orderId.toString())
-            } else if (status == "Delivered") {
+            } else if (status.contains("Delivered", ignoreCase = true)) {
                 stopLocationTracking()
+            }
+        }
+    }
+
+    fun cancelOrder(orderId: Int, reason: String = "Customer requested cancellation") {
+        viewModelScope.launch {
+            try {
+                repository.updateOrderStatus(orderId, "Cancelled")
+                repository.updateOrderStatusRemote(orderId.toString(), "Cancelled")
+                refreshOrders()
+                pushSimulatedNotification("Order #AD${orderId.toString().padStart(8, '0')} has been cancelled. Instant refund initiated.")
+            } catch (e: Exception) {
+                repository.updateOrderStatus(orderId, "Cancelled")
+                refreshOrders()
             }
         }
     }
@@ -1613,18 +1839,30 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     
     fun registerUserProfile(name: String, email: String, phone: String, referralCode: String = "") {
         viewModelScope.launch {
-            if (name.isBlank() || email.isBlank() || phone.isBlank()) return@launch
+            if (name.isBlank() || email.isBlank() || phone.isBlank()) {
+                pushSimulatedNotification("Please fill all required fields.")
+                return@launch
+            }
             
             isGlobalLoading.value = true
             val auth = repository.register(name, email, phone, if (referralCode.isBlank()) null else referralCode)
             isGlobalLoading.value = false
 
             if (auth != null && auth.user != null) {
+                userId.value = auth.user?.id ?: ""
                 userName.value = auth.user?.name ?: ""
                 userEmail.value = auth.user?.email ?: ""
                 userPhone.value = auth.user?.phone ?: ""
                 isLoggedIn.value = true
-                _currentScreen.value = ApnaDhobiScreen.LocationSelection
+                isRegistrationRequired.value = false
+                
+                if (postAuthDestination != null) {
+                    val dest = postAuthDestination!!
+                    postAuthDestination = null
+                    _currentScreen.value = dest
+                } else {
+                    _currentScreen.value = ApnaDhobiScreen.LocationSelection
+                }
                 pushSimulatedNotification("Welcome ${auth.user?.name}! Profile created successfully.")
                 
                 // Trigger SMTP registration welcome email in background
@@ -1645,17 +1883,28 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
         return repository.validateReferral(code)
     }
 
-    fun sendOtp(phone: String, isRegistered: Boolean) {
+    fun sendOtp(phone: String) {
         viewModelScope.launch {
+            if (phone.length < 10) {
+                pushSimulatedNotification("Please enter a valid 10-digit mobile number.")
+                return@launch
+            }
+
             // UI state immediately update for fast feedback
             isOtpSent.value = true
             startOtpCountdown()
             
-            val success = repository.sendOtp(phone)
-            if (success) {
-                pushSimulatedNotification("OTP Sent successfully to $phone")
+            // Check registration status to prepare UI flow
+            val isRegistered = repository.checkRegistration(phone)
+            if (!isRegistered) {
+                pushSimulatedNotification("New user detected! OTP sent for registration.")
             } else {
-                pushSimulatedNotification("Note: Backend API failed, but using Sandbox mode.")
+                pushSimulatedNotification("Welcome back! OTP sent for login.")
+            }
+
+            val success = repository.sendOtp(phone)
+            if (!success) {
+                pushSimulatedNotification("Note: Backend API failed, but using Sandbox mode (Test OTP: 1234).")
             }
         }
     }
@@ -1672,7 +1921,12 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
 
     suspend fun verifyOtp(phone: String, otp: String): Boolean {
         val auth = repository.verifyOtp(phone, otp)
-        return if (auth != null && auth.needsRegistration != true) {
+        if (auth != null) {
+            if (auth.needsRegistration == true) {
+                isRegistrationRequired.value = true
+                pushSimulatedNotification("Almost there! Please complete your profile.")
+                return false
+            }
             userId.value = auth.user?.id ?: ""
             userName.value = auth.user?.name ?: ""
             userEmail.value = auth.user?.email ?: ""
@@ -1681,10 +1935,23 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
             isCurrentUserAdmin.value = auth.user?.roles?.contains("ADMIN") == true
             isCurrentUserVendor.value = auth.user?.roles?.contains("VENDOR") == true
             isCurrentUserDelivery.value = auth.user?.roles?.contains("DELIVERY_AGENT") == true
-            true
-        } else {
-            false
+            
+            if (postAuthDestination != null) {
+                val dest = postAuthDestination!!
+                postAuthDestination = null
+                _currentScreen.value = dest
+            } else if (isCurrentUserAdmin.value) {
+                _currentScreen.value = ApnaDhobiScreen.AdminDashboard
+            } else if (isCurrentUserVendor.value) {
+                _currentScreen.value = ApnaDhobiScreen.VendorDashboard
+            } else if (isCurrentUserDelivery.value) {
+                _currentScreen.value = ApnaDhobiScreen.DeliveryBoyDashboard
+            } else {
+                _currentScreen.value = ApnaDhobiScreen.LocationSelection
+            }
+            return true
         }
+        return false
     }
 
     suspend fun createRazorpayOrder(amount: Double): Map<String, Any>? {
@@ -1712,6 +1979,14 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
             isCurrentUserAdmin.value = auth.user?.roles?.contains("ADMIN") == true
             isCurrentUserVendor.value = auth.user?.roles?.contains("VENDOR") == true
             isCurrentUserDelivery.value = auth.user?.roles?.contains("DELIVERY_AGENT") == true
+            
+            if (postAuthDestination != null) {
+                val dest = postAuthDestination!!
+                postAuthDestination = null
+                _currentScreen.value = dest
+            } else {
+                _currentScreen.value = ApnaDhobiScreen.LocationSelection
+            }
             true
         } else {
             false
@@ -1814,8 +2089,12 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun refreshWalletRequests() {
         viewModelScope.launch {
-            val requests = repository.fetchAllRechargeRequests()
-            walletDepositRequests.value = requests
+            try {
+                val requests = repository.fetchAllRechargeRequests()
+                walletDepositRequests.value = requests
+            } catch (e: Throwable) {
+                Log.e("ApnaDhobiViewModel", "refreshWalletRequests non-fatal error: ${e.message}")
+            }
         }
     }
 
@@ -1924,7 +2203,11 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun refreshWorkers() {
         viewModelScope.launch {
-            workers.value = repository.fetchWorkers()
+            try {
+                workers.value = repository.fetchWorkers()
+            } catch (e: Throwable) {
+                Log.e("ApnaDhobiViewModel", "refreshWorkers non-fatal error: ${e.message}")
+            }
         }
     }
 

@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
 
     <style name="Theme.MyApplication" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:windowBackground">@color/light_cream</item>
         <item name="android:colorBackground">@color/light_cream</item>
+        <!-- Android 12+ System Splash Screen Config (Apna Dhobi Brand Logo) -->
+        <item name="android:windowSplashScreenBackground" tools:targetApi="31">#FFFFFF</item>
+        <item name="android:windowSplashScreenAnimatedIcon" tools:targetApi="31">@drawable/ic_launcher_foreground</item>
+        <item name="android:windowSplashScreenIconBackgroundColor" tools:targetApi="31">#FFFFFF</item>
     </style>
 </resources>

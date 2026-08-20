@@ -311,6 +311,18 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
         }
     }
 
+    suspend fun fetchPublicConfig(): Map<String, Any>? {
+        return try {
+            val response = catalogApi.getPublicConfig()
+            if (response.isSuccessful) {
+                response.body()
+            } else null
+        } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "fetchPublicConfig error: ${e.message}")
+            null
+        }
+    }
+
     suspend fun fetchBanners(): List<BannerDto> {
         return try {
             val response = catalogApi.getBanners()

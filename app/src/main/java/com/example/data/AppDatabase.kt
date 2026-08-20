@@ -52,6 +52,7 @@ data class OrderRecord(
     val weightKg: Double = 0.0,
     val verifiedItemCount: Int = 0,
     val bagId: String = "",
+    val userNotes: String = "",
     val timestamp: Long = System.currentTimeMillis()
 )
 
@@ -139,7 +140,7 @@ interface ApnaDhobiDao {
 
 @Database(
     entities = [CartItem::class, SavedAddress::class, OrderRecord::class, SupportMessage::class, UserProfile::class],
-    version = 4,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
