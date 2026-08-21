@@ -275,8 +275,28 @@ fun MainViewport(vm: ApnaDhobiViewModel) {
     }
 }
 
+fun resolveImageUrl(rawUrl: String?): String? {
+    if (rawUrl.isNullOrBlank()) return null
+    if (rawUrl.startsWith("data:image")) return rawUrl
+    var url = rawUrl.trim()
+    if (url.startsWith("http://10.0.2.2:3000")) {
+        url = url.replace("http://10.0.2.2:3000", "https://apna-dhobi-backend.onrender.com")
+    }
+    if (url.startsWith("http://localhost:3000")) {
+        url = url.replace("http://localhost:3000", "https://apna-dhobi-backend.onrender.com")
+    }
+    if (url.startsWith("/api/v1/")) {
+        url = "https://apna-dhobi-backend.onrender.com$url"
+    } else if (url.startsWith("/")) {
+        url = "https://apna-dhobi-backend.onrender.com$url"
+    } else if (url.startsWith("uploads/")) {
+        url = "https://apna-dhobi-backend.onrender.com/$url"
+    }
+    return url
+}
+
 // ==========================================
-// UNIVERSAL IMAGE COMPOSABLE (SUPPORTS BASE64 DATA URIS & NETWORK URLS)
+// UNIVERSAL IMAGE COMPOSABLE (SUPPORTS BASE64 DATA URIS, RELATIVE & NETWORK URLS)
 // ==========================================
 @Composable
 fun UniversalAppImage(
@@ -286,13 +306,14 @@ fun UniversalAppImage(
     contentScale: androidx.compose.ui.layout.ContentScale = androidx.compose.ui.layout.ContentScale.Fit,
     fallback: @Composable () -> Unit
 ) {
-    if (model.isNullOrBlank()) {
+    val resolvedModel = resolveImageUrl(model)
+    if (resolvedModel.isNullOrBlank()) {
         fallback()
         return
     }
 
-    if (model.startsWith("data:image") && model.contains("base64,")) {
-        val base64Data = model.substringAfter("base64,")
+    if (resolvedModel.startsWith("data:image") && resolvedModel.contains("base64,")) {
+        val base64Data = resolvedModel.substringAfter("base64,")
         val bitmap = remember(base64Data) {
             try {
                 val decodedBytes = Base64.decode(base64Data, Base64.DEFAULT)
@@ -312,11 +333,12 @@ fun UniversalAppImage(
             fallback()
         }
     } else {
-        coil.compose.AsyncImage(
-            model = model,
+        coil.compose.SubcomposeAsyncImage(
+            model = resolvedModel,
             contentDescription = contentDescription,
             modifier = modifier,
-            contentScale = contentScale
+            contentScale = contentScale,
+            error = { fallback() }
         )
     }
 }
@@ -514,7 +536,11 @@ fun SplashScreen(vm: ApnaDhobiViewModel) {
 
     LaunchedEffect(Unit) {
         delay(2600)
-        vm.navigateTo(ApnaDhobiScreen.Login)
+        if (isLoggedIn) {
+            vm.navigateTo(ApnaDhobiScreen.HomeFrame)
+        } else {
+            vm.navigateTo(ApnaDhobiScreen.Login)
+        }
     }
 
     Box(
@@ -804,6 +830,7 @@ fun LoginScreen(vm: ApnaDhobiViewModel) {
     val isRegistrationRequired by vm.isRegistrationRequired.collectAsState()
     val showOtpPopup by vm.showOtpPopup.collectAsState()
     val receivedOtpCode by vm.receivedOtpCode.collectAsState()
+    val otpCountdown by vm.otpCountdown.collectAsState()
 
     var authTab by remember { mutableStateOf("login") } // "login", "profile", "admin"
     
@@ -854,10 +881,14 @@ fun LoginScreen(vm: ApnaDhobiViewModel) {
     }
 
     BackHandler {
-        if (vm.postAuthDestination != null) {
-            vm.postAuthDestination = null
+        if (vm.isLoggedIn.value) {
+            if (vm.postAuthDestination != null) {
+                vm.postAuthDestination = null
+            }
+            vm.navigateBack()
+        } else {
+            (context as? android.app.Activity)?.finish()
         }
-        vm.navigateBack()
     }
 
     Box(
@@ -1321,7 +1352,7 @@ fun LoginScreen(vm: ApnaDhobiViewModel) {
                         }
 
                         else -> {
-                            // SECURE LOGIN TAB (MATCHING IMAGE 1)
+                            // SECURE LOGIN TAB
                             Text(
                                 text = "Enter Mobile Number",
                                 fontSize = 13.5.sp,
@@ -1339,13 +1370,13 @@ fun LoginScreen(vm: ApnaDhobiViewModel) {
                                     border = BorderStroke(1.dp, Color(0xFFDBEAFE))
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(10.dp),
+                                        modifier = Modifier.padding(12.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Column {
-                                            Text("OTP sent to +91 ${mobileNumber.ifBlank { "9876543210" }}", color = Color(0xFF0F3E88), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                            Text("Your OTP: ${receivedOtpCode ?: "1234"}", color = Color(0xFF059669), fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                            Text("OTP sent to +91 ${mobileNumber.ifBlank { "9876543210" }}", color = Color(0xFF0F3E88), fontSize = 12.5.sp, fontWeight = FontWeight.Bold)
+                                            Text("Code: ${receivedOtpCode ?: "1234"}", color = Color(0xFF059669), fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                                         }
                                         TextButton(onClick = { vm.isOtpSent.value = false }) {
                                             Text("Edit", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SaffronOrange)
@@ -1353,12 +1384,12 @@ fun LoginScreen(vm: ApnaDhobiViewModel) {
                                     }
                                 }
 
-                                Spacer(modifier = Modifier.height(10.dp))
+                                Spacer(modifier = Modifier.height(12.dp))
 
                                 OutlinedTextField(
                                     value = otp,
                                     onValueChange = { vm.loginOtp.value = it },
-                                    placeholder = { Text("Enter 4-digit OTP code", color = Color(0xFF94A3B8)) },
+                                    placeholder = { Text("Enter 4-digit verification code", color = Color(0xFF94A3B8)) },
                                     leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = Color(0xFF0F3E88)) },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp),
@@ -1371,8 +1402,44 @@ fun LoginScreen(vm: ApnaDhobiViewModel) {
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                                 )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // 60-Second (1 Minute) Live Countdown Timer & Resend Button
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (otpCountdown > 0) {
+                                        val secFormatted = if (otpCountdown < 10) "0$otpCountdown" else "$otpCountdown"
+                                        Text(
+                                            text = "⏳ OTP valid for 00:${secFormatted}s",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color(0xFF64748B)
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "OTP expired",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = Color.Red
+                                        )
+                                    }
+
+                                    Text(
+                                        text = if (otpCountdown > 0) "Resend in ${otpCountdown}s" else "Resend OTP",
+                                        fontSize = 12.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (otpCountdown > 0) Color.Gray else SaffronOrange,
+                                        modifier = Modifier.clickable(enabled = otpCountdown == 0) {
+                                            vm.sendOtp(mobileNumber)
+                                        }
+                                    )
+                                }
                             } else {
-                                // Mobile Number Input Row with Flag (Matching Image 1)
+                                // Mobile Number Input Row with Flag
                                 Surface(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(12.dp),
@@ -1416,79 +1483,9 @@ fun LoginScreen(vm: ApnaDhobiViewModel) {
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            Text(
-                                text = "Referral Code (Optional)",
-                                fontSize = 13.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF0F172A)
-                            )
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Referral Code Row + Apply Button (Matching Image 1)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Surface(
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(12.dp),
-                                    color = Color(0xFFF8FAFC),
-                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 2.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.CardGiftcard,
-                                            contentDescription = null,
-                                            tint = SaffronOrange,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        BasicTextField(
-                                            value = loginReferral,
-                                            onValueChange = { loginReferral = it },
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .padding(vertical = 12.dp),
-                                            textStyle = androidx.compose.ui.text.TextStyle(color = Color(0xFF0F172A), fontSize = 13.5.sp, fontWeight = FontWeight.Medium),
-                                            singleLine = true,
-                                            decorationBox = { innerTextField ->
-                                                if (loginReferral.isEmpty()) {
-                                                    Text("e.g. DHOBI50", color = Color(0xFF94A3B8), fontSize = 13.sp)
-                                                }
-                                                innerTextField()
-                                            }
-                                        )
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.width(10.dp))
-
-                                Button(
-                                    onClick = {
-                                        if (loginReferral.isNotBlank()) {
-                                            vm.userReferralCode.value = loginReferral
-                                            vm.applyReferral()
-                                        }
-                                    },
-                                    modifier = Modifier.height(46.dp),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
-                                ) {
-                                    Text("Apply", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
-                                }
-                            }
-
                             Spacer(modifier = Modifier.height(18.dp))
 
-                            // Main Action Button: Send OTP Code (Matching Image 1)
+                            // Main Action Button: Send OTP Code / Verify & Continue
                             Button(
                                 onClick = {
                                     if (!isOtpSent) {
@@ -1496,7 +1493,7 @@ fun LoginScreen(vm: ApnaDhobiViewModel) {
                                     } else {
                                         coroutineScope.launch {
                                             if (vm.verifyOtp(mobileNumber, otp)) {
-                                                // Redirected inside verifyOtp to LocationSelection
+                                                // Redirected inside verifyOtp
                                             }
                                         }
                                     }
@@ -1516,7 +1513,7 @@ fun LoginScreen(vm: ApnaDhobiViewModel) {
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = if (!isOtpSent) "Send OTP Code" else "Verify & Continue",
+                                        text = if (!isOtpSent) "Send OTP Code" else "Verify & Continue 🚀",
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = Color.White
@@ -3424,7 +3421,11 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
         val finalFormatted = if (houseFlatNo.isNotBlank()) "$houseFlatNo, $addressDetailText" else addressDetailText
         vm.saveNewAddress(finalFormatted, selectedLabel)
         vm.currentFullAddress.value = finalFormatted
-        vm.navigateTo(ApnaDhobiScreen.HomeFrame)
+        if (vm.isLoggedIn.value) {
+            vm.navigateTo(ApnaDhobiScreen.HomeFrame)
+        } else {
+            vm.navigateTo(ApnaDhobiScreen.Login)
+        }
     }
 
     BackHandler {

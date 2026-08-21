@@ -80,7 +80,7 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     var receivedOtpCode = MutableStateFlow<String?>(null)
     var showOtpPopup = MutableStateFlow(false)
     var otpCountdown = MutableStateFlow(0) // Countdown in seconds
-    var isLoggedIn = MutableStateFlow(true)
+    var isLoggedIn = MutableStateFlow(false)
     var isHindi = MutableStateFlow(false)
     var userReferralCode = MutableStateFlow("")
     var referralAppliedMessage = MutableStateFlow("")
@@ -1121,11 +1121,17 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
             val prev = screenStack.removeAt(screenStack.size - 1)
             if (isLoggedIn.value && (prev is ApnaDhobiScreen.Login || prev is ApnaDhobiScreen.Splash)) {
                 _currentScreen.value = ApnaDhobiScreen.HomeFrame
+            } else if (!isLoggedIn.value && prev !is ApnaDhobiScreen.Login && prev !is ApnaDhobiScreen.Splash) {
+                _currentScreen.value = ApnaDhobiScreen.Login
             } else {
                 _currentScreen.value = prev
             }
         } else {
-            _currentScreen.value = ApnaDhobiScreen.HomeFrame
+            if (isLoggedIn.value) {
+                _currentScreen.value = ApnaDhobiScreen.HomeFrame
+            } else {
+                _currentScreen.value = ApnaDhobiScreen.Login
+            }
         }
     }
 
@@ -1929,35 +1935,35 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
             if (response != null) {
                 if (response.isRegistered == false) {
                     isRegistrationRequired.value = true
-                    pushSimulatedNotification("Account not found for $formattedPhone. Please complete your profile to sign up!")
+                    pushSimulatedNotification("Mobile $formattedPhone is not registered. Please create your profile to sign up!")
                 } else {
                     isOtpSent.value = true
                     val otpVal = response.otp ?: ((1000..9999).random().toString())
                     receivedOtpCode.value = otpVal
                     showOtpPopup.value = true
-                    startOtpCountdown()
-                    pushSimulatedNotification("Verification code sent! OTP is $otpVal")
+                    startOtpCountdown(60)
+                    pushSimulatedNotification("Verification code sent! Valid for 60s.")
                 }
             } else {
                 val isReg = repository.checkRegistration(formattedPhone)
                 if (!isReg) {
                     isRegistrationRequired.value = true
-                    pushSimulatedNotification("Account not found for $formattedPhone. Please complete your profile!")
+                    pushSimulatedNotification("Mobile $formattedPhone is not registered. Please create your profile!")
                 } else {
                     isOtpSent.value = true
                     val randomOtp = (1000..9999).random().toString()
                     receivedOtpCode.value = randomOtp
                     showOtpPopup.value = true
-                    startOtpCountdown()
-                    pushSimulatedNotification("OTP generated: $randomOtp")
+                    startOtpCountdown(60)
+                    pushSimulatedNotification("OTP generated: $randomOtp (Valid for 60s)")
                 }
             }
         }
     }
 
-    private fun startOtpCountdown() {
+    fun startOtpCountdown(seconds: Int = 60) {
         viewModelScope.launch {
-            otpCountdown.value = 30
+            otpCountdown.value = seconds
             while (otpCountdown.value > 0) {
                 delay(1000)
                 otpCountdown.value -= 1
