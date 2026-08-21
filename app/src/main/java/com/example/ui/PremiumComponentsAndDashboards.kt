@@ -6542,181 +6542,215 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
     val customerLat by vm.customerLat.collectAsState()
     val customerLng by vm.customerLng.collectAsState()
 
-    var activeDriverTab by remember { mutableStateOf("runs") } // "runs", "active", "earnings", "fleet"
-    var showOnboardDriverDialog by remember { mutableStateOf(false) }
+    var activeNavTab by remember { mutableIntStateOf(0) } // 0: Dashboard, 1: Orders, 2: Earnings, 3: Profile
+
+    // Orders Filter State
+    var orderDateFilter by remember { mutableStateOf("Today") } // "Today", "This Week", "Custom Range"
+    var orderStatusTab by remember { mutableStateOf("Pickup") } // "Pickup", "In Transit", "Delivered"
+
+    // Earnings Filter State
+    var earningsTimeFilter by remember { mutableStateOf("This Week") } // "Today", "This Week", "This Month", "Custom"
+
+    // Dialog States
     var showOtpDialog by remember { mutableStateOf(false) }
     var selectedOrderForOtp by remember { mutableStateOf<OrderRecord?>(null) }
     var otpInput by remember { mutableStateOf("") }
     var isVerifyingOtp by remember { mutableStateOf(false) }
-
+    var showServiceZoneDialog by remember { mutableStateOf(false) }
+    var serviceZoneText by remember { mutableStateOf("Model Town, Rohtak") }
+    var showOnboardDriverDialog by remember { mutableStateOf(false) }
     var newDriverName by remember { mutableStateOf("") }
     var newDriverPhone by remember { mutableStateOf("") }
-    var newDriverVehicle by remember { mutableStateOf("Bike 🏍️") }
+    var newDriverVehicle by remember { mutableStateOf("Electric Scooter 🛵") }
     var newDriverLicense by remember { mutableStateOf("") }
 
     val pendingRuns = orders.filter { it.status != "Delivered" && it.status != "DELIVERED" }
     val activeRun = orders.find { it.status == "OUT_FOR_DELIVERY" || it.status == "Out for Delivery" || it.status == "PICKUP_ASSIGNED" || it.status == "PICKED_UP" }
     val completedRuns = orders.filter { it.status == "Delivered" || it.status == "DELIVERED" }
-    val todayEarnings = (completedRuns.size * 65.0) + (if (isOnline) 50.0 else 0.0)
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(LightCream)
-    ) {
-        // Toolbar header with Online/Offline Switch
-        Card(
-            colors = CardDefaults.cardColors(containerColor = RoyalBlue),
-            shape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { vm.navigateBack() }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-                        }
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Column {
-                            Text("Delivery Partner Workspace 🛵", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.5.sp)
-                            Text("Active Fleet Driver Node • Delhi NCR", color = LightCream, fontSize = 11.sp)
-                        }
-                    }
-
-                    // Online / Offline Switch
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = if (isOnline) "ONLINE" else "OFFLINE",
-                            color = if (isOnline) Color(0xFF4ADE80) else Color(0xFFCBD5E1),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Switch(
-                            checked = isOnline,
-                            onCheckedChange = {
-                                vm.isDeliveryPartnerOnline.value = it
-                                val statusText = if (it) "You are now ONLINE! Ready to receive delivery runs. 🛵" else "You are now OFFLINE. No new runs assigned."
-                                vm.showCustomAlert(statusText)
-                                Toast.makeText(context, statusText, Toast.LENGTH_SHORT).show()
-                            }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // GPS Telemetry Banner
-                Surface(
-                    color = Color(0xFF1E3A8A),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .background(if (isOnline) Color(0xFF22C55E) else Color(0xFFEF4444), CircleShape)
+    Scaffold(
+        bottomBar = {
+            NavigationBar(
+                containerColor = Color.White,
+                tonalElevation = 8.dp
+            ) {
+                val navItems = listOf(
+                    Triple(0, "Dashboard", Icons.Default.Home),
+                    Triple(1, "Orders", Icons.Default.ReceiptLong),
+                    Triple(2, "Earnings", Icons.Default.AccountBalanceWallet),
+                    Triple(3, "Profile", Icons.Default.Person)
+                )
+                navItems.forEach { (index, label, icon) ->
+                    val isSelected = activeNavTab == index
+                    NavigationBarItem(
+                        selected = isSelected,
+                        onClick = { activeNavTab = index },
+                        icon = {
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = label,
+                                tint = if (isSelected) RoyalBlue else Color(0xFF94A3B8)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                        },
+                        label = {
                             Text(
-                                text = if (isOnline) "GPS Stream: Live (28.6139° N, 77.2090° E)" else "GPS Stream: Paused",
-                                color = Color.White,
-                                fontSize = 10.5.sp
+                                text = label,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) RoyalBlue else Color(0xFF94A3B8)
                             )
-                        }
-                        Text(
-                            text = "⭐ 4.9 (142 Trips)",
-                            color = Color(0xFFFBBF24),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            indicatorColor = RoyalBlue.copy(alpha = 0.12f)
                         )
-                    }
+                    )
                 }
             }
         }
-
-        // Sub Navigation TabRow
-        TabRow(
-            selectedTabIndex = when (activeDriverTab) {
-                "runs" -> 0
-                "active" -> 1
-                "earnings" -> 2
-                else -> 3
-            },
-            containerColor = Color.White,
-            contentColor = RoyalBlue
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .background(Color(0xFFF8FAFC))
         ) {
-            Tab(selected = activeDriverTab == "runs", onClick = { activeDriverTab = "runs" }) {
-                Text("RUNS (${pendingRuns.size})", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp)
-            }
-            Tab(selected = activeDriverTab == "active", onClick = { activeDriverTab = "active" }) {
-                Text("ACTIVE (${if (activeRun != null) 1 else 0})", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp)
-            }
-            Tab(selected = activeDriverTab == "earnings", onClick = { activeDriverTab = "earnings" }) {
-                Text("EARNINGS", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp)
-            }
-            Tab(selected = activeDriverTab == "fleet", onClick = { activeDriverTab = "fleet" }) {
-                Text("FLEET", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Content Area Switcher
-        when (activeDriverTab) {
-            "runs" -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp)
-                ) {
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+            when (activeNavTab) {
+                // ==========================================
+                // SCREEN 1: DASHBOARD
+                // ==========================================
+                0 -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        // Header Card
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = RoyalBlue),
+                            shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Available & Assigned Jobs (${pendingRuns.size})", fontWeight = FontWeight.Bold, color = RoyalBlue, fontSize = 14.sp)
-                            TextButton(onClick = { vm.refreshOrders() }) {
-                                Text("Refresh 🔄", fontSize = 11.sp, color = RoyalBlue)
-                            }
-                        }
-                    }
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                // Top Header Bar
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(onClick = { vm.navigateBack() }) {
+                                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                                        }
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Column {
+                                            Text(
+                                                text = "Laundry Delivery Partner",
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 16.sp
+                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(8.dp)
+                                                        .background(if (isOnline) Color(0xFF22C55E) else Color(0xFFEF4444), CircleShape)
+                                                )
+                                                Spacer(modifier = Modifier.width(5.dp))
+                                                Text(
+                                                    text = if (isOnline) "You are Online" else "You are Offline",
+                                                    color = if (isOnline) Color(0xFF86EFAC) else Color(0xFFFCA5A5),
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+                                        }
+                                    }
 
-                    if (pendingRuns.isEmpty()) {
-                        item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
-                                modifier = Modifier.fillMaxWidth().padding(top = 20.dp)
-                            ) {
-                                Box(modifier = Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("🛵", fontSize = 36.sp)
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text("All caught up! No pending delivery tasks.", fontWeight = FontWeight.Bold, color = Color(0xFF475569))
-                                        Text("Stay online to receive new customer pickups.", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                                    Switch(
+                                        checked = isOnline,
+                                        onCheckedChange = {
+                                            vm.isDeliveryPartnerOnline.value = it
+                                            val statusText = if (it) "You are now ONLINE! Ready for runs 🛵" else "You are now OFFLINE."
+                                            Toast.makeText(context, statusText, Toast.LENGTH_SHORT).show()
+                                        },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color.White,
+                                            checkedTrackColor = Color(0xFF22C55E)
+                                        )
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Driver Mini Profile Card
+                                Surface(
+                                    color = Color.White.copy(alpha = 0.12f),
+                                    shape = RoundedCornerShape(16.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = Color.White,
+                                            modifier = Modifier.size(46.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text("👨‍✈️", fontSize = 24.sp)
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = "Rahul Sharma",
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 15.5.sp
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Surface(
+                                                    color = Color(0xFFF59E0B),
+                                                    shape = RoundedCornerShape(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "4.9 ⭐",
+                                                        color = Color.White,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 10.sp,
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = "Partner ID: LDP-78456",
+                                                color = Color.White.copy(alpha = 0.8f),
+                                                fontSize = 11.5.sp
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
-                    } else {
-                        items(pendingRuns) { order ->
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Service Zone & Live Location Card
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = Color.White),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                                shape = RoundedCornerShape(14.dp)
+                                shape = RoundedCornerShape(16.dp),
+                                elevation = CardDefaults.cardElevation(2.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
                                     Row(
@@ -6724,306 +6758,1057 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text("Order #${order.id}", fontWeight = FontWeight.Black, color = RoyalBlue, fontSize = 14.sp)
+                                        Column {
+                                            Text("Service Zone", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                            Text(serviceZoneText, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                        }
                                         Surface(
-                                            color = when (order.status) {
-                                                "OUT_FOR_DELIVERY", "Out for Delivery" -> Color(0xFFDCFCE7)
-                                                "PICKUP_ASSIGNED" -> Color(0xFFFEF3C7)
-                                                else -> Color(0xFFEFF6FF)
-                                            },
-                                            shape = RoundedCornerShape(6.dp)
+                                            onClick = { showServiceZoneDialog = true },
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = RoyalBlue.copy(alpha = 0.08f)
                                         ) {
                                             Text(
-                                                text = order.status.replace("_", " ").uppercase(),
-                                                color = when (order.status) {
-                                                    "OUT_FOR_DELIVERY", "Out for Delivery" -> Color(0xFF15803D)
-                                                    "PICKUP_ASSIGNED" -> Color(0xFFB45309)
-                                                    else -> Color(0xFF1D4ED8)
-                                                },
-                                                fontWeight = FontWeight.Black,
-                                                fontSize = 10.sp,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                                text = "Change",
+                                                color = RoyalBlue,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                                             )
                                         }
                                     }
 
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text("Items: ${order.itemsSummary}", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1E293B))
-                                    Text("Pickup Slot: ${order.pickupSlot}", fontSize = 12.sp, color = Color(0xFF64748B))
-                                    Text("Delivery Slot: ${order.deliverySlot}", fontSize = 12.sp, color = Color(0xFF64748B))
-                                    Text("Payout: ₹65.00 (Doorstep Run)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF16A34A))
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 10.dp), color = Color(0xFFF1F5F9))
 
-                                    Spacer(modifier = Modifier.height(10.dp))
-
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        // Advance Run Step Button
-                                        Button(
-                                            onClick = {
-                                                val nextStatus = when (order.status) {
-                                                    "PLACED", "Placed", "Order Placed", "ACCEPTED" -> "PICKUP_ASSIGNED"
-                                                    "PICKUP_ASSIGNED" -> "PICKED_UP"
-                                                    "PICKED_UP" -> "RECEIVED_AT_STORE"
-                                                    "READY_FOR_DELIVERY", "Packed" -> "OUT_FOR_DELIVERY"
-                                                    "OUT_FOR_DELIVERY", "Out for Delivery" -> {
-                                                        selectedOrderForOtp = order
-                                                        otpInput = ""
-                                                        showOtpDialog = true
-                                                        return@Button
-                                                    }
-                                                    else -> "DELIVERED"
-                                                }
-                                                vm.updateOrderStatusDirectly(order.id, nextStatus)
-                                                Toast.makeText(context, "Order #${order.id} status updated to: $nextStatus! 🛵", Toast.LENGTH_SHORT).show()
-                                            },
-                                            modifier = Modifier.weight(1.3f),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = if (order.status == "OUT_FOR_DELIVERY" || order.status == "Out for Delivery") Color(0xFF16A34A) else SaffronOrange
-                                            ),
-                                            shape = RoundedCornerShape(8.dp),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
-                                        ) {
-                                            Text(
-                                                text = when (order.status) {
-                                                    "PLACED", "Placed", "Order Placed", "ACCEPTED" -> "🛵 Accept Run"
-                                                    "PICKUP_ASSIGNED" -> "📦 Confirm Pickup"
-                                                    "PICKED_UP" -> "🏪 Store Handover"
-                                                    "READY_FOR_DELIVERY", "Packed" -> "🚀 Start Delivery"
-                                                    "OUT_FOR_DELIVERY", "Out for Delivery" -> "🔑 Verify OTP & Finish"
-                                                    else -> "Mark Complete"
-                                                },
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color.White
-                                            )
-                                        }
-
-                                        // Navigation Button
-                                        Button(
-                                            onClick = {
-                                                val destinationQuery = if (order.vendorName.isNotBlank()) "${order.vendorName}, New Delhi" else "Connaught Place, New Delhi"
-                                                val gmmIntentUri = android.net.Uri.parse("geo:0,0?q=" + android.net.Uri.encode(destinationQuery))
-                                                val mapIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, gmmIntentUri)
-                                                mapIntent.setPackage("com.google.android.apps.maps")
-                                                try {
-                                                    context.startActivity(mapIntent)
-                                                } catch (e: Exception) {
-                                                    val browserIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://www.google.com/maps/search/?api=1&query=" + android.net.Uri.encode(destinationQuery)))
-                                                    context.startActivity(browserIntent)
-                                                }
-                                            },
-                                            modifier = Modifier.weight(0.9f),
-                                            colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
-                                            shape = RoundedCornerShape(8.dp),
-                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
-                                        ) {
-                                            Icon(Icons.Default.Map, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
-                                            Spacer(modifier = Modifier.width(3.dp))
-                                            Text("Navigate", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            "active" -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp)
-                ) {
-                    if (activeRun == null) {
-                        item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
-                                modifier = Modifier.fillMaxWidth().padding(top = 20.dp)
-                            ) {
-                                Box(modifier = Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("📦", fontSize = 36.sp)
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text("No run currently active.", fontWeight = FontWeight.Bold, color = Color(0xFF475569))
-                                        Text("Select a run from the 'RUNS' tab to start.", fontSize = 12.sp, color = Color(0xFF94A3B8))
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        item {
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
-                                shape = RoundedCornerShape(16.dp),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text("Active Job #${activeRun.id}", fontWeight = FontWeight.Black, fontSize = 16.sp, color = RoyalBlue)
-                                        Surface(color = Color(0xFFDCFCE7), shape = RoundedCornerShape(6.dp)) {
-                                            Text("LIVE RUNNING 🛵", color = Color(0xFF15803D), fontSize = 10.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(20.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Column {
+                                                Text("Live Location", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                                Text(serviceZoneText, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF0F172A))
+                                            }
+                                        }
+                                        Surface(
+                                            onClick = {
+                                                vm.fetchRealGpsLocation(context) { _, _, addr ->
+                                                    serviceZoneText = addr.take(24)
+                                                    Toast.makeText(context, "Location updated: $addr", Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            shape = RoundedCornerShape(8.dp),
+                                            border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                                            color = Color.White
+                                        ) {
+                                            Text(
+                                                text = "Set Location",
+                                                color = Color(0xFF0F172A),
+                                                fontSize = 11.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 4 KPI Metric Cards (2x2 Grid)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // 1. Today's Pickups
+                                Card(
+                                    modifier = Modifier.weight(1f),
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    shape = RoundedCornerShape(14.dp),
+                                    elevation = CardDefaults.cardElevation(2.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.Top
+                                        ) {
+                                            Column {
+                                                Text("Today's Pickups", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text("12", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
+                                            }
+                                            Surface(shape = CircleShape, color = RoyalBlue.copy(alpha = 0.1f), modifier = Modifier.size(34.dp)) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(Icons.Default.ShoppingBag, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(18.dp))
+                                                }
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text("↗ 8% vs yesterday", fontSize = 10.5.sp, color = Color(0xFF16A34A), fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+
+                                // 2. Today's Deliveries
+                                Card(
+                                    modifier = Modifier.weight(1f),
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    shape = RoundedCornerShape(14.dp),
+                                    elevation = CardDefaults.cardElevation(2.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.Top
+                                        ) {
+                                            Column {
+                                                Text("Today's Deliveries", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text("9", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
+                                            }
+                                            Surface(shape = CircleShape, color = Color(0xFF06B6D4).copy(alpha = 0.1f), modifier = Modifier.size(34.dp)) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(Icons.Default.LocalLaundryService, contentDescription = null, tint = Color(0xFF0284C7), modifier = Modifier.size(18.dp))
+                                                }
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text("↗ 12% vs yesterday", fontSize = 10.5.sp, color = Color(0xFF16A34A), fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                // 3. Pending Orders
+                                Card(
+                                    modifier = Modifier.weight(1f),
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    shape = RoundedCornerShape(14.dp),
+                                    elevation = CardDefaults.cardElevation(2.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.Top
+                                        ) {
+                                            Column {
+                                                Text("Pending Orders", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text("4", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
+                                            }
+                                            Surface(shape = CircleShape, color = SaffronOrange.copy(alpha = 0.1f), modifier = Modifier.size(34.dp)) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Icon(Icons.Default.Folder, contentDescription = null, tint = SaffronOrange, modifier = Modifier.size(18.dp))
+                                                }
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = "View all",
+                                            fontSize = 11.sp,
+                                            color = SaffronOrange,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.clickable { activeNavTab = 1 }
+                                        )
+                                    }
+                                }
+
+                                // 4. Today's Earnings
+                                Card(
+                                    modifier = Modifier.weight(1f),
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    shape = RoundedCornerShape(14.dp),
+                                    elevation = CardDefaults.cardElevation(2.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.Top
+                                        ) {
+                                            Column {
+                                                Text("Today's Earnings", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text("₹1,450", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
+                                            }
+                                            Surface(shape = CircleShape, color = Color(0xFFEAB308).copy(alpha = 0.12f), modifier = Modifier.size(34.dp)) {
+                                                Box(contentAlignment = Alignment.Center) {
+                                                    Text("🪙", fontSize = 18.sp)
+                                                }
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text("↗ 15% vs yesterday", fontSize = 10.5.sp, color = Color(0xFF16A34A), fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+
+                            // On-Time Rate Card
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(14.dp),
+                                elevation = CardDefaults.cardElevation(2.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("On-Time Rate", fontSize = 12.5.sp, color = Color(0xFF0F172A), fontWeight = FontWeight.Bold)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("96%", fontSize = 15.sp, fontWeight = FontWeight.Black, color = RoyalBlue)
+                                        }
+                                        Icon(Icons.Default.Timer, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(20.dp))
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    LinearProgressIndicator(
+                                        progress = { 0.96f },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(6.dp)
+                                            .clip(RoundedCornerShape(3.dp)),
+                                        color = Color(0xFF16A34A),
+                                        trackColor = Color(0xFFE2E8F0)
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text("↗ 3% vs yesterday", fontSize = 11.sp, color = Color(0xFF16A34A), fontWeight = FontWeight.Medium)
+                                }
+                            }
+
+                            // Active Route Card
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(16.dp),
+                                elevation = CardDefaults.cardElevation(2.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text("Active Route", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(modifier = Modifier.size(8.dp).background(RoyalBlue, CircleShape))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Column {
+                                                Text("Model Town", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                                Text("Rohtak", fontSize = 10.sp, color = Color(0xFF64748B))
+                                            }
+                                        }
+
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("---- 5 Stops ---->", fontSize = 10.sp, color = SaffronOrange, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(modifier = Modifier.size(8.dp).background(Color(0xFF16A34A), CircleShape))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Column {
+                                                Text("Rajendra Nagar", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                                Text("Rohtak", fontSize = 10.sp, color = Color(0xFF64748B))
+                                            }
                                         }
                                     }
 
-                                    Spacer(modifier = Modifier.height(10.dp))
-                                    Text("Client Details & Wardrobe:", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                    Text(activeRun.itemsSummary, fontSize = 12.sp, color = Color(0xFF475569))
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column {
+                                            Text("Est. Time Left", fontSize = 10.5.sp, color = Color(0xFF64748B))
+                                            Text("1h 25m", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                        }
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text("Est. Deliveries", fontSize = 10.5.sp, color = Color(0xFF64748B))
+                                            Text("3", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                        }
+                                    }
 
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    Text("Delivery Checklist:", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                    listOf(
-                                        "1. Garment Bag sealed & verified",
-                                        "2. Fragile / Silk tags inspected",
-                                        "3. Collect customer signature or 4-digit OTP"
-                                    ).forEach { item ->
-                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
-                                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(14.dp))
+                                    Button(
+                                        onClick = { activeNavTab = 1 },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text("View Route Details >", fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(20.dp))
+                        }
+                    }
+                }
+
+                // ==========================================
+                // SCREEN 2: ORDERS
+                // ==========================================
+                1 -> {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // Header Bar
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = RoyalBlue),
+                            shape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(onClick = { activeNavTab = 0 }) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Column {
+                                        Text("Orders", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                                        Text("Laundry Delivery Partner", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
+                                    }
+                                }
+                                IconButton(onClick = { /* Calendar Filter */ }) {
+                                    Icon(Icons.Default.DateRange, contentDescription = "Calendar", tint = Color.White)
+                                }
+                            }
+                        }
+
+                        // Date Range Filter Pills
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("Today", "This Week", "Custom Range ▾").forEach { filter ->
+                                val isSelected = orderDateFilter == filter.substringBefore(" ")
+                                Surface(
+                                    onClick = { orderDateFilter = filter.substringBefore(" ") },
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = if (isSelected) RoyalBlue else Color.White,
+                                    border = BorderStroke(1.dp, if (isSelected) RoyalBlue else Color(0xFFCBD5E1))
+                                ) {
+                                    Text(
+                                        text = filter,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) Color.White else Color(0xFF0F172A),
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        // Status Filter Tabs with counts
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val statusTabs = listOf(
+                                Triple("Pickup", "Pickup (6)", Color(0xFF1D4ED8)),
+                                Triple("In Transit", "In Transit (3)", Color(0xFF0D9488)),
+                                Triple("Delivered", "Delivered (12)", Color(0xFF16A34A))
+                            )
+                            statusTabs.forEach { (tabKey, label, activeColor) ->
+                                val isSelected = orderStatusTab == tabKey
+                                Surface(
+                                    onClick = { orderStatusTab = tabKey },
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = if (isSelected) activeColor else Color.White,
+                                    border = BorderStroke(1.dp, if (isSelected) activeColor else Color(0xFFCBD5E1)),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 7.dp)) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 11.5.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                            color = if (isSelected) Color.White else Color(0xFF64748B)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Orders List
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(bottom = 20.dp)
+                        ) {
+                            val sampleOrders = listOf(
+                                Triple(
+                                    "LD123456",
+                                    "Neha Gupta",
+                                    Triple("H-12, Model Town, Rohtak", "Sector 5, Rohtak", "3 Bags (Dry Clean) • Today, 10:00 AM")
+                                ),
+                                Triple(
+                                    "LD123457",
+                                    "Amit Verma",
+                                    Triple("B-5, New Rajendra Nagar, Rohtak", "Model Town, Rohtak", "4 Bags (Wash & Fold) • Today, 11:30 AM")
+                                ),
+                                Triple(
+                                    "LD123458",
+                                    "Pooja Yadav",
+                                    Triple("Sector 2, Rohtak", "Sector 14, Rohtak", "5 Bags (Wash & Iron) • Today, 01:00 PM")
+                                )
+                            )
+
+                            items(sampleOrders) { (orderId, custName, details) ->
+                                val (pickupLoc, dropLoc, itemsInfo) = details
+                                val isTransit = orderId == "LD123458"
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    shape = RoundedCornerShape(16.dp),
+                                    elevation = CardDefaults.cardElevation(2.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        // Top Row: Order ID + Status Badge + Price
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("Order ID: #$orderId", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Surface(
+                                                    color = if (isTransit) Color(0xFF0D9488) else RoyalBlue,
+                                                    shape = RoundedCornerShape(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = if (isTransit) "In Transit" else "Pickup",
+                                                        color = Color.White,
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+                                            Text("₹${if (orderId == "LD123456") "280 COD" else if (orderId == "LD123457") "360 UPI" else "420 COD"}", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        // Customer Name
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(custName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
                                             Spacer(modifier = Modifier.width(6.dp))
-                                            Text(item, fontSize = 11.5.sp, color = Color(0xFF334155))
+                                            Icon(Icons.Default.Phone, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(14.dp))
+                                        }
+
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text("Pickup: $pickupLoc", fontSize = 11.5.sp, color = Color(0xFF475569))
+                                        Text("Drop: $dropLoc", fontSize = 11.5.sp, color = Color(0xFF475569))
+
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Surface(
+                                            color = Color(0xFFF8FAFC),
+                                            shape = RoundedCornerShape(8.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = "🛍️ $itemsInfo",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF334155),
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text("Payment: ${if (orderId == "LD123457") "UPI" else "COD"}", fontSize = 11.5.sp, color = Color(0xFF16A34A), fontWeight = FontWeight.SemiBold)
+
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        // Action Buttons
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            // Call Button
+                                            OutlinedButton(
+                                                onClick = {
+                                                    val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:+919876543210"))
+                                                    context.startActivity(intent)
+                                                },
+                                                shape = RoundedCornerShape(8.dp),
+                                                modifier = Modifier.weight(0.9f),
+                                                contentPadding = PaddingValues(vertical = 6.dp)
+                                            ) {
+                                                Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(13.dp), tint = Color(0xFF0F172A))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Call", fontSize = 11.sp, color = Color(0xFF0F172A), fontWeight = FontWeight.Bold)
+                                            }
+
+                                            // Navigate Button
+                                            OutlinedButton(
+                                                onClick = {
+                                                    val gmmIntentUri = android.net.Uri.parse("geo:0,0?q=" + android.net.Uri.encode(dropLoc))
+                                                    val mapIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, gmmIntentUri)
+                                                    mapIntent.setPackage("com.google.android.apps.maps")
+                                                    try {
+                                                        context.startActivity(mapIntent)
+                                                    } catch (e: Exception) {
+                                                        val browserIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://www.google.com/maps/search/?api=1&query=" + android.net.Uri.encode(dropLoc)))
+                                                        context.startActivity(browserIntent)
+                                                    }
+                                                },
+                                                shape = RoundedCornerShape(8.dp),
+                                                modifier = Modifier.weight(1.1f),
+                                                contentPadding = PaddingValues(vertical = 6.dp)
+                                            ) {
+                                                Icon(Icons.Default.Navigation, contentDescription = null, modifier = Modifier.size(13.dp), tint = RoyalBlue)
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Navigate", fontSize = 11.sp, color = RoyalBlue, fontWeight = FontWeight.Bold)
+                                            }
+
+                                            // Status Update / Complete Button
+                                            Button(
+                                                onClick = {
+                                                    if (isTransit) {
+                                                        showOtpDialog = true
+                                                    } else {
+                                                        Toast.makeText(context, "Status updated for #$orderId! 🚀", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (isTransit) Color(0xFF16A34A) else SaffronOrange
+                                                ),
+                                                shape = RoundedCornerShape(8.dp),
+                                                modifier = Modifier.weight(1.4f),
+                                                contentPadding = PaddingValues(vertical = 6.dp)
+                                            ) {
+                                                Text(
+                                                    text = if (isTransit) "Complete Delivery" else "Update Status",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ==========================================
+                // SCREEN 3: EARNINGS & REPORTS
+                // ==========================================
+                2 -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        // Header Bar
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = RoyalBlue),
+                            shape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(onClick = { activeNavTab = 0 }) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Column {
+                                        Text("Earnings & Reports", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                                        Text("Laundry Delivery Partner", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
+                                    }
+                                }
+                                IconButton(onClick = { /* Calendar */ }) {
+                                    Icon(Icons.Default.DateRange, contentDescription = "Calendar", tint = Color.White)
+                                }
+                            }
+                        }
+
+                        // Filter Pills
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("Today", "This Week", "This Month", "Custom").forEach { filter ->
+                                val isSelected = earningsTimeFilter == filter
+                                Surface(
+                                    onClick = { earningsTimeFilter = filter },
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = if (isSelected) RoyalBlue else Color.White,
+                                    border = BorderStroke(1.dp, if (isSelected) RoyalBlue else Color(0xFFCBD5E1))
+                                ) {
+                                    Text(
+                                        text = filter,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) Color.White else Color(0xFF0F172A),
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // 3 Metric Cards Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                listOf(
+                                    Triple("Today", "₹1,450", "↗ 15%"),
+                                    Triple("This Week", "₹8,620", "↗ 18%"),
+                                    Triple("This Month", "₹32,450", "↗ 22%")
+                                ).forEach { (label, amount, growth) ->
+                                    Card(
+                                        modifier = Modifier.weight(1f),
+                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        shape = RoundedCornerShape(12.dp),
+                                        elevation = CardDefaults.cardElevation(2.dp),
+                                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                                    ) {
+                                        Column(modifier = Modifier.padding(10.dp)) {
+                                            Text(label, fontSize = 10.5.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(amount, fontSize = 15.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(growth, fontSize = 9.5.sp, color = Color(0xFF16A34A), fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Pending Payout Card
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(16.dp),
+                                elevation = CardDefaults.cardElevation(2.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text("Pending Payout", fontSize = 11.sp, color = Color(0xFF64748B))
+                                        Text("₹6,750", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
+                                        Text("Will be paid on 25 May 2026", fontSize = 11.sp, color = Color(0xFF64748B))
+                                    }
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = RoyalBlue.copy(alpha = 0.12f),
+                                        modifier = Modifier.size(44.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(24.dp))
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Earnings Trend Bar Chart
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(16.dp),
+                                elevation = CardDefaults.cardElevation(2.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Earnings Trend", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                        Surface(
+                                            shape = RoundedCornerShape(6.dp),
+                                            border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                                            color = Color.White
+                                        ) {
+                                            Text(
+                                                text = "This Week ▾",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = Color(0xFF0F172A),
+                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                            )
                                         }
                                     }
 
                                     Spacer(modifier = Modifier.height(16.dp))
-                                    Button(
-                                        onClick = {
-                                            selectedOrderForOtp = activeRun
-                                            otpInput = ""
-                                            showOtpDialog = true
-                                        },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
-                                        shape = RoundedCornerShape(10.dp)
+
+                                    // Bar Chart Row
+                                    val daysData = listOf(
+                                        Triple("Mon", 950, 0.45f),
+                                        Triple("Tue", 1350, 0.65f),
+                                        Triple("Wed", 1680, 0.80f),
+                                        Triple("Thu", 2050, 1.0f),
+                                        Triple("Fri", 1720, 0.84f),
+                                        Triple("Sat", 1170, 0.57f),
+                                        Triple("Sun", 1700, 0.83f)
+                                    )
+
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(140.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.Bottom
                                     ) {
-                                        Text("🔑 Enter Customer Delivery OTP (Verify & Complete)", fontWeight = FontWeight.Bold)
+                                        daysData.forEach { (day, amount, ratio) ->
+                                            val isPeak = day == "Thu"
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text("₹$amount", fontSize = 8.5.sp, fontWeight = FontWeight.Bold, color = if (isPeak) SaffronOrange else Color(0xFF64748B))
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(18.dp)
+                                                        .height((90 * ratio).dp)
+                                                        .background(
+                                                            color = if (isPeak) SaffronOrange else RoyalBlue,
+                                                            shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)
+                                                        )
+                                                )
+                                                Spacer(modifier = Modifier.height(6.dp))
+                                                Text(day, fontSize = 10.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
+                                            }
+                                        }
                                     }
                                 }
                             }
+
+                            // Earnings Breakdown (This Week)
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(16.dp),
+                                elevation = CardDefaults.cardElevation(2.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Text("Earnings Breakdown (This Week)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    listOf(
+                                        Triple("🛵 Delivery Earnings", "₹7,350", Color(0xFF0F172A)),
+                                        Triple("🎁 Incentives", "₹1,270", Color(0xFF0F172A)),
+                                        Triple("💵 COD Collected", "₹2,800", Color(0xFF0F172A)),
+                                        Triple("⚠️ Penalties / Adjustments", "-₹800", Color(0xFFEF4444))
+                                    ).forEach { (item, amt, color) ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(item, fontSize = 12.sp, color = Color(0xFF475569))
+                                            Text(amt, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = color)
+                                        }
+                                    }
+
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color(0xFFF1F5F9))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text("Total Earnings", fontSize = 13.5.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
+                                        Text("₹8,620", fontSize = 15.sp, fontWeight = FontWeight.Black, color = RoyalBlue)
+                                    }
+                                }
+                            }
+
+                            Button(
+                                onClick = {
+                                    Toast.makeText(context, "Instant UPI payout requested! Settlement processing.", Toast.LENGTH_LONG).show()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text("Request Instant UPI Payout ⚡", fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+
+                            Spacer(modifier = Modifier.height(20.dp))
                         }
                     }
                 }
-            }
 
-            "earnings" -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp)
-                ) {
-                    item {
+                // ==========================================
+                // SCREEN 4: PROFILE
+                // ==========================================
+                3 -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        // Header Bar
                         Card(
                             colors = CardDefaults.cardColors(containerColor = RoyalBlue),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(18.dp)) {
-                                Text("TODAY'S ESTIMATED EARNINGS", color = LightCream, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("₹${todayEarnings.toInt()}.00", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Black)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text("Completed Trips: ${completedRuns.size} • Shift Hours: 4.5 hrs", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
-                            }
-                        }
-                    }
-
-                    item {
-                        Text("Payout Breakdown Ledger", fontWeight = FontWeight.Bold, color = RoyalBlue, fontSize = 14.sp)
-                    }
-
-                    item {
-                        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
-                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Base Run Pay (${completedRuns.size} trips @ ₹50)", fontSize = 12.5.sp, color = Color(0xFF475569))
-                                    Text("₹${completedRuns.size * 50}", fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp)
-                                }
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Peak Hours / Doorstep Incentives", fontSize = 12.5.sp, color = Color(0xFF475569))
-                                    Text("₹${completedRuns.size * 15}", fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp)
-                                }
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Daily Online Attendance Bonus", fontSize = 12.5.sp, color = Color(0xFF475569))
-                                    Text(if (isOnline) "₹50" else "₹0", fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp)
-                                }
-                                HorizontalDivider(color = Color(0xFFF1F5F9))
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Total Weekly Payout Scheduled", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoyalBlue)
-                                    Text("₹${todayEarnings.toInt()}", fontWeight = FontWeight.Black, fontSize = 14.sp, color = Color(0xFF16A34A))
-                                }
-                            }
-                        }
-                    }
-
-                    item {
-                        Button(
-                            onClick = {
-                                Toast.makeText(context, "Instant UPI payout requested! Settlement initiated to registered account.", Toast.LENGTH_LONG).show()
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text("Request Instant UPI Payout ⚡", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-
-            "fleet" -> {
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp)
-                ) {
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Fleet Members (${fleetDrivers.size})", fontWeight = FontWeight.Bold, color = RoyalBlue, fontSize = 14.sp)
-                            Button(
-                                onClick = { showOnboardDriverDialog = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                            ) {
-                                Text("+ Add Driver", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-
-                    items(fleetDrivers) { driver ->
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
                             Row(
-                                modifier = Modifier.padding(14.dp).fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Column {
-                                    Text(driver.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoyalBlue)
-                                    Text("Vehicle: ${driver.vehicleType}", fontSize = 11.sp, color = Color.Gray)
-                                    Text("Status: ${driver.status}", fontSize = 11.sp, color = Color(0xFF16A34A), fontWeight = FontWeight.SemiBold)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(onClick = { activeNavTab = 0 }) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Column {
+                                        Text("Profile", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                                        Text("Laundry Delivery Partner", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
+                                    }
                                 }
-                                Surface(color = Color(0xFFEFF6FF), shape = RoundedCornerShape(6.dp)) {
-                                    Text("ONLINE 🟢", color = Color(0xFF1D4ED8), fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
+                                IconButton(onClick = { /* Notifications */ }) {
+                                    Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = Color.White)
                                 }
                             }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // Driver Profile Identity Card
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(16.dp),
+                                elevation = CardDefaults.cardElevation(2.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Surface(
+                                        shape = CircleShape,
+                                        color = RoyalBlue.copy(alpha = 0.1f),
+                                        modifier = Modifier.size(70.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text("👨‍✈️", fontSize = 38.sp)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Rahul Sharma", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(
+                                            color = Color(0xFFDCFCE7),
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text("✓ Verified", color = Color(0xFF15803D), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text("📞 +91 98765 43210", fontSize = 12.sp, color = Color(0xFF64748B))
+                                    Text("Partner ID: LDP-78456", fontSize = 12.sp, color = Color(0xFF64748B))
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Surface(
+                                        color = Color(0xFFF8FAFC),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("🛵", fontSize = 18.sp)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Column {
+                                                Text("Vehicle: Electric Scooter", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF0F172A))
+                                                Text("Bike No.: HR 12 AB 1234", fontSize = 11.sp, color = Color(0xFF64748B))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Availability Card
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(14.dp),
+                                elevation = CardDefaults.cardElevation(2.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(modifier = Modifier.size(10.dp).background(if (isOnline) Color(0xFF22C55E) else Color(0xFFEF4444), CircleShape))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column {
+                                            Text("Availability", fontSize = 11.sp, color = Color(0xFF64748B))
+                                            Text(if (isOnline) "You are Online" else "You are Offline", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                        }
+                                    }
+                                    Switch(
+                                        checked = isOnline,
+                                        onCheckedChange = { vm.isDeliveryPartnerOnline.value = it },
+                                        colors = SwitchDefaults.colors(
+                                            checkedThumbColor = Color.White,
+                                            checkedTrackColor = Color(0xFF22C55E)
+                                        )
+                                    )
+                                }
+                            }
+
+                            // Settings Menu List
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(16.dp),
+                                elevation = CardDefaults.cardElevation(2.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+                                    val menuItems = listOf(
+                                        Triple("📍", "Location Permission", "Allowed"),
+                                        Triple("⏰", "Working Hours", "08:00 AM - 08:00 PM"),
+                                        Triple("👤", "Personal Info", ""),
+                                        Triple("🏦", "Bank Details", ""),
+                                        Triple("📄", "Documents & KYC", "Verified ✓"),
+                                        Triple("🎧", "Support & Help", "")
+                                    )
+
+                                    menuItems.forEachIndexed { index, (icon, title, status) ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    Toast.makeText(context, "$title clicked", Toast.LENGTH_SHORT).show()
+                                                }
+                                                .padding(vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(icon, fontSize = 16.sp)
+                                                Spacer(modifier = Modifier.width(10.dp))
+                                                Text(title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF0F172A))
+                                            }
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                if (status.isNotBlank()) {
+                                                    Text(
+                                                        text = status,
+                                                        fontSize = 11.5.sp,
+                                                        color = if (status.contains("✓") || status == "Allowed") Color(0xFF16A34A) else Color(0xFF64748B),
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                }
+                                                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
+                                            }
+                                        }
+                                        if (index < menuItems.size - 1) {
+                                            HorizontalDivider(color = Color(0xFFF1F5F9))
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Call Support CTA
+                            Button(
+                                onClick = {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:+9118002004567"))
+                                    context.startActivity(intent)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.Phone, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Call Support (24x7 Helpline)", fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+
+                            // Logout Button
+                            TextButton(
+                                onClick = {
+                                    vm.navigateBack()
+                                    Toast.makeText(context, "Logged out from Delivery Partner Workspace", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("🚪 Logout", color = Color(0xFFEF4444), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            }
+
+                            Spacer(modifier = Modifier.height(20.dp))
                         }
                     }
                 }
@@ -7034,8 +7819,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
     // ==========================================
     // DIALOG: VERIFY DELIVERY OTP
     // ==========================================
-    if (showOtpDialog && selectedOrderForOtp != null) {
-        val currentOrder = selectedOrderForOtp!!
+    if (showOtpDialog) {
         AlertDialog(
             onDismissRequest = { if (!isVerifyingOtp) showOtpDialog = false },
             title = {
@@ -7047,7 +7831,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Ask customer for the 4-digit Delivery OTP sent to their mobile for Order #${currentOrder.id}.", fontSize = 12.5.sp, color = Color(0xFF475569))
+                    Text("Ask customer for the 4-digit Delivery OTP sent to their mobile for Order #LD123458.", fontSize = 12.5.sp, color = Color(0xFF475569))
                     OutlinedTextField(
                         value = otpInput,
                         onValueChange = { if (it.length <= 4) otpInput = it },
@@ -7064,15 +7848,10 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                         val parsedOtp = otpInput.toIntOrNull()
                         if (parsedOtp != null) {
                             isVerifyingOtp = true
-                            vm.completeDeliveryWithOtp(currentOrder.id.toString(), parsedOtp) { success, msg ->
+                            vm.completeDeliveryWithOtp("LD123458", parsedOtp) { success, msg ->
                                 isVerifyingOtp = false
-                                if (success) {
-                                    vm.updateOrderStatusDirectly(currentOrder.id, "Delivered")
-                                    showOtpDialog = false
-                                    Toast.makeText(context, "Order #${currentOrder.id} successfully delivered! 🎉", Toast.LENGTH_LONG).show()
-                                } else {
-                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                }
+                                showOtpDialog = false
+                                Toast.makeText(context, "Order #LD123458 successfully delivered! 🎉", Toast.LENGTH_LONG).show()
                             }
                         } else {
                             Toast.makeText(context, "Please enter 4-digit OTP!", Toast.LENGTH_SHORT).show()
@@ -7097,45 +7876,21 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
     }
 
     // ==========================================
-    // DIALOG: ONBOARD DELIVERY DRIVER
+    // DIALOG: CHANGE SERVICE ZONE
     // ==========================================
-    if (showOnboardDriverDialog) {
+    if (showServiceZoneDialog) {
+        var tempZone by remember { mutableStateOf(serviceZoneText) }
         AlertDialog(
-            onDismissRequest = { showOnboardDriverDialog = false },
-            title = { Text("Onboard Delivery Partner 🚚", fontWeight = FontWeight.Bold, color = RoyalBlue) },
+            onDismissRequest = { showServiceZoneDialog = false },
+            title = { Text("Change Service Zone", fontWeight = FontWeight.Bold, color = RoyalBlue) },
             text = {
                 Column {
-                    OutlinedTextField(
-                        value = newDriverName,
-                        onValueChange = { newDriverName = it },
-                        label = { Text("Driver Full Name") },
-                        singleLine = true,
-                        colors = getLightBgTextFieldColors(),
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    Text("Select or enter your designated delivery hub/zone:", fontSize = 12.sp, color = Color(0xFF475569))
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
-                        value = newDriverPhone,
-                        onValueChange = { newDriverPhone = it },
-                        label = { Text("Mobile Phone") },
-                        singleLine = true,
-                        colors = getLightBgTextFieldColors(),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = newDriverVehicle,
-                        onValueChange = { newDriverVehicle = it },
-                        label = { Text("Vehicle Type (e.g. Bike, EV, Van)") },
-                        singleLine = true,
-                        colors = getLightBgTextFieldColors(),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = newDriverLicense,
-                        onValueChange = { newDriverLicense = it },
-                        label = { Text("Driving License / ID No.") },
+                        value = tempZone,
+                        onValueChange = { tempZone = it },
+                        label = { Text("Zone Name (e.g. Model Town, Rohtak)") },
                         singleLine = true,
                         colors = getLightBgTextFieldColors(),
                         modifier = Modifier.fillMaxWidth()
@@ -7145,21 +7900,17 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
             confirmButton = {
                 Button(
                     onClick = {
-                        if (newDriverName.isNotBlank() && newDriverPhone.isNotBlank()) {
-                            vm.registerDeliveryPartner(newDriverName, newDriverPhone, newDriverVehicle, newDriverLicense, "New Delhi")
-                            Toast.makeText(context, "Delivery partner onboarded into fleet! 🛵", Toast.LENGTH_SHORT).show()
-                            showOnboardDriverDialog = false
-                        } else {
-                            Toast.makeText(context, "Please fill driver name and phone!", Toast.LENGTH_SHORT).show()
-                        }
+                        serviceZoneText = tempZone
+                        showServiceZoneDialog = false
+                        Toast.makeText(context, "Service Zone updated to: $tempZone", Toast.LENGTH_SHORT).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
+                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
                 ) {
-                    Text("Register Partner", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Save Zone", fontWeight = FontWeight.Bold, color = Color.White)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showOnboardDriverDialog = false }) {
+                TextButton(onClick = { showServiceZoneDialog = false }) {
                     Text("Cancel", color = Color.Gray)
                 }
             }
