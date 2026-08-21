@@ -6,9 +6,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.room.Room
 import com.example.data.*
-import com.example.data.api.OrderDto
-import com.example.data.api.VendorStatsDto
-import com.example.data.dto.BannerDto
+import com.example.data.api.*
+import com.example.data.dto.*
 import com.google.android.gms.location.*
 import io.socket.client.IO
 import io.socket.client.Socket
@@ -16,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 sealed class ApnaDhobiScreen {
@@ -344,11 +344,348 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     val categoriesState = MutableStateFlow<List<ServiceCategory>>(repository.serviceCategories)
 
     // Current User profile info
-    val userName = MutableStateFlow("Anil Satya")
-    val userEmail = MutableStateFlow("anil.satyaka@gmail.com")
+    val userName = MutableStateFlow("Customer")
+    val userEmail = MutableStateFlow("customer@apnadhobi.com")
     val userPhone = MutableStateFlow("+91 9876543210")
     val userId = MutableStateFlow("")
     val userProfilePhoto = MutableStateFlow<String?>(null)
+    val userGender = MutableStateFlow("Male")
+    val userDob = MutableStateFlow("1995-08-15")
+    val isUploadingProfilePhoto = MutableStateFlow(false)
+    val isSavingProfile = MutableStateFlow(false)
+
+    // Remote Data States for Customer Submodules
+    val remoteAddresses = MutableStateFlow<List<AddressDto>>(emptyList())
+    val walletTransactions = MutableStateFlow<List<Map<String, Any>>>(emptyList())
+    val availableCouponsList = MutableStateFlow<List<CouponDto>>(emptyList())
+    val supportTicketsList = MutableStateFlow<List<SupportTicketDto>>(emptyList())
+    val vendorApplicationStatus = MutableStateFlow<String?>("PENDING_REVIEW")
+    val deliveryApplicationStatus = MutableStateFlow<String?>("PENDING_REVIEW")
+
+    // Active Profile Subview for Navigation inside Customer Account
+    val activeProfileSubview = MutableStateFlow<String>("main") // "main", "orders", "order_details", "addresses", "wallet", "membership", "support", "create_ticket", "vendor_onboarding", "delivery_onboarding"
+    val selectedOrderDetail = MutableStateFlow<OrderRecord?>(null)
+
+    fun navigateProfileSubview(subview: String) {
+        activeProfileSubview.value = subview
+    }
+
+    fun loadUserProfileFromRemote() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val profile = repository.fetchUserProfileRemote()
+                if (profile != null) {
+                    profile.name?.let { if (it.isNotBlank()) userName.value = it }
+                    profile.email?.let { if (it.isNotBlank()) userEmail.value = it }
+                    if (profile.phone.isNotBlank()) userPhone.value = profile.phone
+                    profile.profilePhoto?.let { userProfilePhoto.value = it }
+                    profile.gender?.let { userGender.value = it }
+                    profile.dob?.let { userDob.value = it }
+                    profile.id?.let { userId.value = it }
+                }
+            } catch (e: Exception) {
+                Log.e("ApnaDhobiViewModel", "Error loading remote user profile", e)
+            }
+        }
+    }
+
+    fun updateCustomerProfile(name: String, email: String, gender: String, dob: String, onComplete: (Boolean) -> Unit) {
+        isSavingProfile.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val updated = repository.updateUserProfileRemote(
+                    name = name.trim(),
+                    email = email.trim(),
+                    profilePhoto = userProfilePhoto.value,
+                    gender = gender,
+                    dob = dob
+                )
+                if (updated != null) {
+                    userName.value = name.trim()
+                    userEmail.value = email.trim()
+                    userGender.value = gender
+                    userDob.value = dob
+                    // Also update local room db
+                    repository.createUserProfile(UserProfile(
+                        phone = userPhone.value,
+                        name = name.trim(),
+                        email = email.trim(),
+                        roles = "CUSTOMER"
+                    ))
+                    withContext(Dispatchers.Main) {
+                        isSavingProfile.value = false
+                        showCustomAlert("Profile updated successfully! ✨")
+                        onComplete(true)
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        isSavingProfile.value = false
+                        showCustomAlert("Failed to update profile. Please try again.", isError = true)
+                        onComplete(false)
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    isSavingProfile.value = false
+                    showCustomAlert("Network error: ${e.message}", isError = true)
+                    onComplete(false)
+                }
+            }
+        }
+    }
+
+    fun uploadProfilePhotoBytes(bytes: ByteArray, filename: String, mimeType: String) {
+        isUploadingProfilePhoto.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val url = repository.uploadMediaByteArray(bytes, filename, mimeType)
+                if (url != null) {
+                    val fullUrl = if (url.startsWith("http")) url else "https://apna-dhobi-backend.onrender.com$url"
+                    userProfilePhoto.value = fullUrl
+                    repository.updateUserProfileRemote(
+                        name = userName.value,
+                        email = userEmail.value,
+                        profilePhoto = fullUrl,
+                        gender = userGender.value,
+                        dob = userDob.value
+                    )
+                    withContext(Dispatchers.Main) {
+                        isUploadingProfilePhoto.value = false
+                        showCustomAlert("Profile picture updated! 📸")
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        isUploadingProfilePhoto.value = false
+                        showCustomAlert("Photo upload failed. Please try again.", isError = true)
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    isUploadingProfilePhoto.value = false
+                    showCustomAlert("Upload error: ${e.message}", isError = true)
+                }
+            }
+        }
+    }
+
+    fun removeProfilePhoto() {
+        viewModelScope.launch(Dispatchers.IO) {
+            userProfilePhoto.value = null
+            repository.updateUserProfileRemote(
+                name = userName.value,
+                email = userEmail.value,
+                profilePhoto = "",
+                gender = userGender.value,
+                dob = userDob.value
+            )
+            withContext(Dispatchers.Main) {
+                showCustomAlert("Profile picture removed.")
+            }
+        }
+    }
+
+    fun loadAddressesFromRemote() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val list = repository.fetchRemoteAddresses()
+                remoteAddresses.value = list
+            } catch (e: Exception) {
+                Log.e("ApnaDhobiViewModel", "Error fetching addresses", e)
+            }
+        }
+    }
+
+    fun addRemoteAddress(
+        name: String,
+        phone: String,
+        flatBuilding: String,
+        streetArea: String,
+        landmark: String,
+        city: String,
+        pincode: String,
+        type: String,
+        isDefault: Boolean,
+        onComplete: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val res = repository.createRemoteAddress(name, phone, flatBuilding, streetArea, landmark, city, pincode, type, isDefault)
+            if (res != null) {
+                // Also insert into Room
+                repository.addAddress(SavedAddress(label = type, addressLine = "$flatBuilding, $streetArea, $city - $pincode", isDefault = isDefault))
+                loadAddressesFromRemote()
+                withContext(Dispatchers.Main) {
+                    showCustomAlert("Address saved successfully! 📍")
+                    onComplete(true)
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    showCustomAlert("Failed to save address", isError = true)
+                    onComplete(false)
+                }
+            }
+        }
+    }
+
+    fun updateRemoteAddress(
+        id: String,
+        name: String,
+        phone: String,
+        flatBuilding: String,
+        streetArea: String,
+        landmark: String,
+        city: String,
+        pincode: String,
+        type: String,
+        isDefault: Boolean,
+        onComplete: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val res = repository.updateRemoteAddress(id, name, phone, flatBuilding, streetArea, landmark, city, pincode, type, isDefault)
+            if (res != null) {
+                loadAddressesFromRemote()
+                withContext(Dispatchers.Main) {
+                    showCustomAlert("Address updated! 📍")
+                    onComplete(true)
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    showCustomAlert("Failed to update address", isError = true)
+                    onComplete(false)
+                }
+            }
+        }
+    }
+
+    fun deleteRemoteAddress(id: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val success = repository.deleteRemoteAddress(id)
+            if (success) {
+                loadAddressesFromRemote()
+                withContext(Dispatchers.Main) {
+                    showCustomAlert("Address removed.")
+                }
+            }
+        }
+    }
+
+    fun setDefaultRemoteAddress(id: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val success = repository.setDefaultRemoteAddress(id)
+            if (success) {
+                loadAddressesFromRemote()
+                withContext(Dispatchers.Main) {
+                    showCustomAlert("Default delivery address updated!")
+                }
+            }
+        }
+    }
+
+    fun loadWalletTransactions() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val list = repository.fetchWalletTransactions()
+                walletTransactions.value = list
+            } catch (e: Exception) {
+                Log.e("ApnaDhobiViewModel", "Error fetching wallet transactions", e)
+            }
+        }
+    }
+
+    fun loadCoupons() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val list = repository.fetchCoupons()
+                availableCouponsList.value = list
+            } catch (e: Exception) {
+                Log.e("ApnaDhobiViewModel", "Error fetching coupons", e)
+            }
+        }
+    }
+
+    fun loadSupportTickets() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val list = repository.fetchSupportTickets()
+                supportTicketsList.value = list
+            } catch (e: Exception) {
+                Log.e("ApnaDhobiViewModel", "Error fetching support tickets", e)
+            }
+        }
+    }
+
+    fun createSupportTicket(
+        category: String,
+        subject: String,
+        description: String,
+        orderId: String? = null,
+        contactPhone: String? = null,
+        onComplete: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val ticket = repository.createSupportTicket(category, subject, description, orderId, contactPhone)
+            if (ticket != null) {
+                loadSupportTickets()
+                withContext(Dispatchers.Main) {
+                    showCustomAlert("Support Ticket #${ticket.ticketId} created! 🎫")
+                    onComplete(true)
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    showCustomAlert("Failed to create ticket. Please try again.", isError = true)
+                    onComplete(false)
+                }
+            }
+        }
+    }
+
+    fun submitVendorOnboarding(
+        storeName: String,
+        description: String,
+        address: String,
+        logoText: String,
+        bannerColor: String,
+        onComplete: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val vendor = repository.registerVendor(storeName, description, address, logoText, bannerColor)
+            if (vendor != null) {
+                vendorApplicationStatus.value = "APPROVED"
+                withContext(Dispatchers.Main) {
+                    showCustomAlert("Vendor Registration submitted successfully! 🎉")
+                    onComplete(true)
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    showCustomAlert("Failed to submit vendor application", isError = true)
+                    onComplete(false)
+                }
+            }
+        }
+    }
+
+    fun submitDeliveryPartnerOnboarding(
+        phone: String,
+        name: String,
+        vehicleType: String,
+        licenseNumber: String,
+        onComplete: (Boolean) -> Unit
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val success = repository.registerWorker(phone, name)
+            if (success) {
+                deliveryApplicationStatus.value = "APPROVED"
+                withContext(Dispatchers.Main) {
+                    showCustomAlert("Delivery Partner Registration submitted! 🛵")
+                    onComplete(true)
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    showCustomAlert("Failed to submit delivery application", isError = true)
+                    onComplete(false)
+                }
+            }
+        }
+    }
 
     // SMTP & POP Configuration States
     val smtpHost = MutableStateFlow("smtp.gmail.com")
@@ -657,10 +994,15 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
                     repository.insertChatMessage(SupportMessage(sender = "AI_Assistant", text = "Namaste! Welcome to Apna Dhobi AI Assistant. 🌸 I can assist you with dry cleaning questions, stain removal advice, or booking instructions! Try asking: 'How to clean silk saree' or 'remove oil stain'."))
                 }
 
-                // Fetch remote catalog from local backend
+                // Fetch remote catalog and user account data
                 refreshCatalog()
                 refreshWalletRequests()
                 refreshVendorOrders()
+                loadUserProfileFromRemote()
+                loadAddressesFromRemote()
+                loadWalletTransactions()
+                loadCoupons()
+                loadSupportTickets()
                 
                 initSocket()
             } catch (e: Throwable) {

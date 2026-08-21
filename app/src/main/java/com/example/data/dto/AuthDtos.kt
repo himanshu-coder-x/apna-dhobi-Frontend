@@ -41,9 +41,13 @@ data class AuthResponse(
 
 @JsonClass(generateAdapter = true)
 data class UserDto(
-    @Json(name = "id") val id: String,
-    @Json(name = "phone") val phone: String,
-    @Json(name = "name") val name: String?,
-    @Json(name = "email") val email: String?,
-    @Json(name = "roles") val roles: List<String>
+    @Json(name = "id") val id: String? = "",
+    @Json(name = "_id") val _id: String? = "",
+    @Json(name = "phone") val phone: String = "",
+    @Json(name = "name") val name: String? = "",
+    @Json(name = "email") val email: String? = "",
+    @Json(name = "roles") val roles: List<String> = emptyList(),
+    @Json(name = "profilePhoto") val profilePhoto: String? = null,
+    @Json(name = "gender") val gender: String? = null,
+    @Json(name = "dob") val dob: String? = null
 )

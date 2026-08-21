@@ -7,6 +7,9 @@ interface WalletApi {
     @GET("wallets/balance")
     suspend fun getBalance(): Response<Map<String, Any>>
 
+    @GET("wallets/transactions")
+    suspend fun getTransactions(): Response<List<Map<String, Any>>>
+
     @POST("wallets/razorpay/create-order")
     suspend fun createRazorpayOrder(@Body data: Map<String, Any>): Response<Map<String, Any>>
 

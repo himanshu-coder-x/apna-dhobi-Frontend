@@ -56,4 +56,8 @@ object RetrofitClient {
     val vendorsApi: VendorsApi = retrofit.create(VendorsApi::class.java)
     val staffApi: StaffApi = retrofit.create(StaffApi::class.java)
     val uploadsApi: UploadsApi = retrofit.create(UploadsApi::class.java)
+    val usersApi: UsersApi = retrofit.create(UsersApi::class.java)
+    val addressesApi: AddressesApi = retrofit.create(AddressesApi::class.java)
+    val supportApi: SupportApi = retrofit.create(SupportApi::class.java)
+    val couponsApi: CouponsApi = retrofit.create(CouponsApi::class.java)
 }

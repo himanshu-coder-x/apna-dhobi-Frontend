@@ -6,6 +6,8 @@ import com.example.data.network.RetrofitClient
 import android.util.Log
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
 
 // Hardcoded model types for robust UI reference
 data class Vendor(
@@ -78,6 +80,10 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
     private val vendorsApi = RetrofitClient.vendorsApi
     private val staffApi = RetrofitClient.staffApi
     private val uploadsApi = RetrofitClient.uploadsApi
+    private val usersApi = RetrofitClient.usersApi
+    private val addressesApi = RetrofitClient.addressesApi
+    private val supportApi = RetrofitClient.supportApi
+    private val couponsApi = RetrofitClient.couponsApi
 
     // Auth Actions
     suspend fun sendOtp(phone: String): SendOtpResponse? {
@@ -613,6 +619,200 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
             val response = uploadsApi.uploadFile(part)
             if (response.isSuccessful) response.body()?.get("url") as? String else null
         } catch (e: Exception) {
+            null
+        }
+    }
+
+    suspend fun uploadMediaByteArray(bytes: ByteArray, filename: String, mimeType: String): String? {
+        return try {
+            val reqBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
+            val part = okhttp3.MultipartBody.Part.createFormData("file", filename, reqBody)
+            uploadFile(part)
+        } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "uploadMediaByteArray error: ${e.message}", e)
+            null
+        }
+    }
+
+    // User Profile
+    suspend fun fetchUserProfileRemote(): UserDto? {
+        return try {
+            val response = usersApi.getProfile()
+            if (response.isSuccessful) response.body() else null
+        } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "fetchUserProfileRemote error: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun updateUserProfileRemote(name: String?, email: String?, profilePhoto: String?, gender: String?, dob: String?): UserDto? {
+        return try {
+            val body = mutableMapOf<String, Any>()
+            name?.let { body["name"] = it }
+            email?.let { body["email"] = it }
+            profilePhoto?.let { body["profilePhoto"] = it }
+            gender?.let { body["gender"] = it }
+            dob?.let { body["dob"] = it }
+            val response = usersApi.updateProfile(body)
+            if (response.isSuccessful) response.body() else null
+        } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "updateUserProfileRemote error: ${e.message}", e)
+            null
+        }
+    }
+
+    // Addresses
+    suspend fun fetchRemoteAddresses(): List<AddressDto> {
+        return try {
+            val response = addressesApi.getAddresses()
+            if (response.isSuccessful) response.body() ?: emptyList() else emptyList()
+        } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "fetchRemoteAddresses error: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    suspend fun createRemoteAddress(
+        name: String,
+        phone: String,
+        flatBuilding: String,
+        streetArea: String,
+        landmark: String,
+        city: String,
+        pincode: String,
+        type: String,
+        isDefault: Boolean
+    ): AddressDto? {
+        return try {
+            val body = mapOf(
+                "name" to name,
+                "phone" to phone,
+                "flatBuilding" to flatBuilding,
+                "streetArea" to streetArea,
+                "landmark" to landmark,
+                "city" to city,
+                "pincode" to pincode,
+                "type" to type,
+                "isDefault" to isDefault
+            )
+            val response = addressesApi.createAddress(body)
+            if (response.isSuccessful) response.body() else null
+        } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "createRemoteAddress error: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun updateRemoteAddress(
+        id: String,
+        name: String,
+        phone: String,
+        flatBuilding: String,
+        streetArea: String,
+        landmark: String,
+        city: String,
+        pincode: String,
+        type: String,
+        isDefault: Boolean
+    ): AddressDto? {
+        return try {
+            val body = mapOf(
+                "name" to name,
+                "phone" to phone,
+                "flatBuilding" to flatBuilding,
+                "streetArea" to streetArea,
+                "landmark" to landmark,
+                "city" to city,
+                "pincode" to pincode,
+                "type" to type,
+                "isDefault" to isDefault
+            )
+            val response = addressesApi.updateAddress(id, body)
+            if (response.isSuccessful) response.body() else null
+        } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "updateRemoteAddress error: ${e.message}", e)
+            null
+        }
+    }
+
+    suspend fun setDefaultRemoteAddress(id: String): Boolean {
+        return try {
+            addressesApi.setDefaultAddress(id).isSuccessful
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun deleteRemoteAddress(id: String): Boolean {
+        return try {
+            addressesApi.deleteAddress(id).isSuccessful
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    // Wallet Transactions
+    suspend fun fetchWalletTransactions(): List<Map<String, Any>> {
+        return try {
+            val response = walletApi.getTransactions()
+            if (response.isSuccessful) response.body() ?: emptyList() else emptyList()
+        } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "fetchWalletTransactions error: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    // Coupons
+    suspend fun fetchCoupons(): List<CouponDto> {
+        return try {
+            val response = couponsApi.getCoupons()
+            if (response.isSuccessful) response.body() ?: emptyList() else emptyList()
+        } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "fetchCoupons error: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    suspend fun verifyCouponRemote(code: String): CouponDto? {
+        return try {
+            val response = couponsApi.verifyCoupon(code.trim().uppercase())
+            if (response.isSuccessful) response.body() else null
+        } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "verifyCouponRemote error: ${e.message}", e)
+            null
+        }
+    }
+
+    // Support Tickets
+    suspend fun fetchSupportTickets(): List<SupportTicketDto> {
+        return try {
+            val response = supportApi.getTickets()
+            if (response.isSuccessful) response.body() ?: emptyList() else emptyList()
+        } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "fetchSupportTickets error: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    suspend fun createSupportTicket(
+        category: String,
+        subject: String,
+        description: String,
+        orderId: String? = null,
+        contactPhone: String? = null
+    ): SupportTicketDto? {
+        return try {
+            val body = mutableMapOf<String, Any>(
+                "category" to category,
+                "subject" to subject,
+                "description" to description
+            )
+            orderId?.let { body["orderId"] = it }
+            contactPhone?.let { body["contactPhone"] = it }
+            val response = supportApi.createTicket(body)
+            if (response.isSuccessful) response.body() else null
+        } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "createSupportTicket error: ${e.message}", e)
             null
         }
     }

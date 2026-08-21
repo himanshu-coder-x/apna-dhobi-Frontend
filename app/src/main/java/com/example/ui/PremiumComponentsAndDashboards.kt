@@ -12,6 +12,9 @@ import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import java.io.ByteArrayOutputStream
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -144,8 +147,10 @@ fun StickyCheckoutFloatingBar(vm: ApnaDhobiViewModel) {
 }
 
 // ==========================================
+// ==========================================
 // FEATURE 3 & 5 — PREMIUM USER PROFILE DASHBOARD
 // ==========================================
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
     val context = LocalContext.current
@@ -157,32 +162,122 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
     val name by vm.userName.collectAsState()
     val email by vm.userEmail.collectAsState()
     val mobile by vm.userPhone.collectAsState()
-    val couponRewardCount by vm.couponRewardsCount.collectAsState()
-    val savedAddressesList by vm.savedAddresses.collectAsState()
+    val photoUrl by vm.userProfilePhoto.collectAsState()
+    val gender by vm.userGender.collectAsState()
+    val dob by vm.userDob.collectAsState()
+    val isUploadingPhoto by vm.isUploadingProfilePhoto.collectAsState()
+    val isSavingProfile by vm.isSavingProfile.collectAsState()
+
+    // Submodules Data States
+    val ordersList by vm.ordersList.collectAsState()
+    val remoteAddressesList by vm.remoteAddresses.collectAsState()
+    val localSavedAddresses by vm.savedAddresses.collectAsState()
+    val walletBal by vm.walletBalance.collectAsState()
+    val transactionsList by vm.walletTransactions.collectAsState()
+    val couponsList by vm.availableCouponsList.collectAsState()
+    val supportTicketsList by vm.supportTicketsList.collectAsState()
     val alertFeed by vm.notifications.collectAsState()
 
-    var showEditNameDialog by remember { mutableStateOf(false) }
-    var tempName by remember { mutableStateOf(name) }
-    var tempPhone by remember { mutableStateOf(mobile) }
-    var tempEmail by remember { mutableStateOf(email) }
+    var activeSubView by remember { mutableStateOf("menu") } // menu, orders, order_details, address, wallet, membership, support, create_ticket, vendor_onboarding, delivery_onboarding, alerts
+    var selectedOrderForDetail by remember { mutableStateOf<OrderRecord?>(null) }
+    var selectedOrderFilter by remember { mutableStateOf("All") } // All, Active, Completed, Cancelled
+
+    // Dialog States
+    var showPhotoSheet by remember { mutableStateOf(false) }
+    var showViewPhotoDialog by remember { mutableStateOf(false) }
+    var showEditProfileDialog by remember { mutableStateOf(false) }
+
+    var tempEditName by remember { mutableStateOf(name) }
+    var tempEditEmail by remember { mutableStateOf(email) }
+    var tempEditGender by remember { mutableStateOf(gender) }
+    var tempEditDob by remember { mutableStateOf(dob) }
 
     var showAddressDialog by remember { mutableStateOf(false) }
-    var newLocLabel by remember { mutableStateOf("") }
-    var newLocLine by remember { mutableStateOf("") }
+    var isEditingAddress by remember { mutableStateOf(false) }
+    var editingAddressId by remember { mutableStateOf("") }
+    var addrName by remember { mutableStateOf("") }
+    var addrPhone by remember { mutableStateOf("") }
+    var addrFlat by remember { mutableStateOf("") }
+    var addrStreet by remember { mutableStateOf("") }
+    var addrLandmark by remember { mutableStateOf("") }
+    var addrCity by remember { mutableStateOf("New Delhi") }
+    var addrPincode by remember { mutableStateOf("110001") }
+    var addrType by remember { mutableStateOf("Home") } // Home, Office, Other
+    var addrIsDefault by remember { mutableStateOf(false) }
 
-    var showEditAddressDialog by remember { mutableStateOf(false) }
-    var editLocId by remember { mutableStateOf(0) }
-    var editLocLabel by remember { mutableStateOf("") }
-    var editLocLine by remember { mutableStateOf("") }
+    // Ticket Form States
+    var ticketCategory by remember { mutableStateOf("ORDER_ISSUE") }
+    var ticketSubject by remember { mutableStateOf("") }
+    var ticketDesc by remember { mutableStateOf("") }
+    var ticketOrderId by remember { mutableStateOf("") }
+    var ticketPhone by remember { mutableStateOf(mobile) }
+    var isCreatingTicket by remember { mutableStateOf(false) }
 
-    var activeSubView by remember { mutableStateOf("menu") } // menu, support, alerts, address
+    // Vendor Onboarding States
+    var vStep by remember { mutableIntStateOf(1) }
+    var vStoreName by remember { mutableStateOf("") }
+    var vStoreDesc by remember { mutableStateOf("") }
+    var vStoreCategory by remember { mutableStateOf("Laundry & Dry Cleaning") }
+    var vStoreCity by remember { mutableStateOf("New Delhi") }
+    var vStoreAddress by remember { mutableStateOf("") }
+    var vStoreRadius by remember { mutableStateOf("5") }
+    var vOwnerName by remember { mutableStateOf(name) }
+    var vOwnerPhone by remember { mutableStateOf(mobile) }
+    var vOwnerGst by remember { mutableStateOf("") }
+    var isSubmittingVendor by remember { mutableStateOf(false) }
+
+    // Delivery Partner Onboarding States
+    var dStep by remember { mutableIntStateOf(1) }
+    var dFullName by remember { mutableStateOf(name) }
+    var dPhone by remember { mutableStateOf(mobile) }
+    var dCity by remember { mutableStateOf("New Delhi") }
+    var dVehicleType by remember { mutableStateOf("Motorcycle / Scooter") }
+    var dLicenseNo by remember { mutableStateOf("") }
+    var dVehicleRegNo by remember { mutableStateOf("") }
+    var isSubmittingDelivery by remember { mutableStateOf(false) }
+
+    // Image Picker Launcher
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            try {
+                val inputStream = context.contentResolver.openInputStream(it)
+                val bytes = inputStream?.readBytes()
+                if (bytes != null && bytes.isNotEmpty()) {
+                    val mimeType = context.contentResolver.getType(it) ?: "image/jpeg"
+                    val filename = "profile_${System.currentTimeMillis()}.jpg"
+                    vm.uploadProfilePhotoBytes(bytes, filename, mimeType)
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error reading image: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // Camera Launcher
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap: Bitmap? ->
+        bitmap?.let {
+            try {
+                val stream = ByteArrayOutputStream()
+                it.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+                val bytes = stream.toByteArray()
+                val filename = "camera_${System.currentTimeMillis()}.jpg"
+                vm.uploadProfilePhotoBytes(bytes, filename, "image/jpeg")
+            } catch (e: Exception) {
+                Toast.makeText(context, "Camera upload failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFFBFBFB))
+            .background(Color(0xFFF8FAFC))
     ) {
-        // Toolbar Curved Header (Matching Image 2)
+        // Top Royal Blue Header (Matching Image 2)
         Card(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF0F47A6)),
             shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
@@ -191,23 +286,44 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
             Column(
                 modifier = Modifier
                     .statusBarsPadding()
-                    .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 22.dp)
+                    .padding(start = 18.dp, end = 18.dp, top = 10.dp, bottom = 20.dp)
             ) {
-                // Top Title & Notification Icon
+                // Header Bar (Title, Back if subview, Notification Bell)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     if (activeSubView != "menu") {
-                        IconButton(onClick = { activeSubView = "menu" }) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        IconButton(
+                            onClick = { activeSubView = "menu" },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
+                        Spacer(modifier = Modifier.width(6.dp))
                     }
                     Text(
-                        text = "My Account & Support",
+                        text = when (activeSubView) {
+                            "orders" -> "My Orders 🛍️"
+                            "order_details" -> "Order Details 🧾"
+                            "address" -> "Saved Addresses 📍"
+                            "wallet" -> "Wallet & Rewards 👛"
+                            "membership" -> "Gold Membership ⭐"
+                            "support" -> "Help & Support 🎧"
+                            "create_ticket" -> "Raise a Ticket 🎫"
+                            "vendor_onboarding" -> "Vendor Registration 🏪"
+                            "delivery_onboarding" -> "Delivery Partner 🛵"
+                            "alerts" -> "Notifications 🔔"
+                            else -> "My Account & Support"
+                        },
                         color = Color.White,
-                        fontSize = 20.sp,
+                        fontSize = if (activeSubView == "menu") 19.5.sp else 18.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f)
                     )
@@ -217,9 +333,8 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                                 Icons.Default.Notifications,
                                 contentDescription = "Notifications",
                                 tint = Color.White,
-                                modifier = Modifier.size(26.dp)
+                                modifier = Modifier.size(24.dp)
                             )
-                            // Red Badge Dot with "1"
                             Box(
                                 modifier = Modifier
                                     .size(15.dp)
@@ -239,7 +354,7 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 // Inner Profile Card Container (Matching Image 2)
                 Surface(
@@ -254,22 +369,68 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                             .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Orange Avatar with Gold Crown on bottom-right
-                        Box {
-                            Box(
-                                modifier = Modifier
-                                    .size(56.dp)
-                                    .background(Color(0xFFFF6B00), CircleShape)
-                                    .border(2.dp, Color.White.copy(alpha = 0.6f), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (name.isNotBlank() && !name.startsWith("usr_")) name.take(1).uppercase() else "C",
-                                    color = Color.White,
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Black
-                                )
+                        // Avatar with Crown Badge (Clickable to change picture)
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clickable { showPhotoSheet = true }
+                        ) {
+                            if (!photoUrl.isNullOrBlank()) {
+                                UniversalAppImage(
+                                    model = photoUrl,
+                                    contentDescription = "Profile Photo",
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(CircleShape)
+                                        .border(2.dp, Color.White.copy(alpha = 0.7f), CircleShape)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(56.dp)
+                                            .background(Color(0xFFFF6B00), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = if (name.isNotBlank()) name.take(1).uppercase() else "C",
+                                            color = Color.White,
+                                            fontSize = 24.sp,
+                                            fontWeight = FontWeight.Black
+                                        )
+                                    }
+                                }
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .background(Color(0xFFFF6B00), CircleShape)
+                                        .border(2.dp, Color.White.copy(alpha = 0.7f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (name.isNotBlank()) name.take(1).uppercase() else "C",
+                                        color = Color.White,
+                                        fontSize = 24.sp,
+                                        fontWeight = FontWeight.Black
+                                    )
+                                }
                             }
+
+                            // Uploading Spinner Overlay
+                            if (isUploadingPhoto) {
+                                Box(
+                                    modifier = Modifier
+                                        .matchParentSize()
+                                        .background(Color.Black.copy(alpha = 0.5f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(
+                                        color = Color.White,
+                                        strokeWidth = 2.dp,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
+
                             // Gold Crown attached to bottom right
                             Box(
                                 modifier = Modifier
@@ -286,18 +447,38 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
 
                         Spacer(modifier = Modifier.width(12.dp))
 
-                        // Customer info
-                        val displayName = if (name.isNotBlank() && !name.startsWith("usr_")) name else if (mobile.isNotBlank()) "Customer (${mobile.takeLast(4)})" else "Customer (3210)"
+                        // Customer Details
+                        val displayName = if (name.isNotBlank()) name else if (mobile.isNotBlank()) "Customer (${mobile.takeLast(4)})" else "Customer"
                         val displayPhone = if (mobile.isNotBlank()) mobile else "9876543210"
-                        val displayEmail = if (email.isNotBlank()) email else "${displayPhone}@apnadhobi.com"
+                        val displayEmail = if (email.isNotBlank()) email else "${displayPhone.replace("+91", "").trim()}@apnadhobi.com"
 
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = displayName,
-                                color = Color.White,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = displayName,
+                                    color = Color.White,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                IconButton(
+                                    onClick = {
+                                        tempEditName = name
+                                        tempEditEmail = email
+                                        tempEditGender = gender
+                                        tempEditDob = dob
+                                        showEditProfileDialog = true
+                                    },
+                                    modifier = Modifier.size(20.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Edit,
+                                        contentDescription = "Edit Profile",
+                                        tint = Color.White.copy(alpha = 0.8f),
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                }
+                            }
                             Spacer(modifier = Modifier.height(2.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.Call, contentDescription = null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(11.dp))
@@ -316,7 +497,8 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                         Surface(
                             color = Color(0xFFFF6B00),
                             shape = RoundedCornerShape(12.dp),
-                            shadowElevation = 2.dp
+                            shadowElevation = 2.dp,
+                            modifier = Modifier.clickable { activeSubView = "membership" }
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
@@ -325,7 +507,7 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                                 Text("👑", fontSize = 9.sp)
                                 Spacer(modifier = Modifier.width(3.dp))
                                 Text(
-                                    text = "GOLD VIP MEMBER",
+                                    text = "GOLD VIP",
                                     color = Color.White,
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Black
@@ -337,152 +519,15 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
+        // Content Area Switcher
         when (activeSubView) {
-            "alerts" -> {
-                Text(
-                    text = "Notification Center",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(16.dp)
-                )
-                if (alertFeed.isEmpty()) {
-                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        Text("No notifications received yet.")
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(alertFeed) { alertMessage ->
-                            Card(
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(modifier = Modifier.padding(12.dp)) {
-                                    Icon(Icons.Default.Notifications, contentDescription = "SMS", tint = SaffronOrange)
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Text(alertMessage, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            "email_config" -> {
-                Box(modifier = Modifier.weight(1f)) {
-                    EmailConfigSubPanel(vm)
-                }
-            }
-            "google_maps_view" -> {
-                Box(modifier = Modifier.weight(1f)) {
-                    GoogleMapsSubPanel(vm)
-                }
-            }
-            "support" -> {
-                Box(modifier = Modifier.weight(1f)) {
-                    ProfileSettingsAndChatCentric(vm)
-                }
-            }
-            "address" -> {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Saved Addresses 📍", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = RoyalBlue)
-                    Button(
-                        onClick = { 
-                            newLocLabel = ""
-                            newLocLine = ""
-                            showAddressDialog = true 
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
-                    ) {
-                        Icon(Icons.Default.Add, contentDescription = "Add Address", modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("+ Add New", fontWeight = FontWeight.Bold)
-                    }
-                }
-
-                LazyColumn(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
-                    if (savedAddressesList.isEmpty()) {
-                        item {
-                            Card(
-                                modifier = Modifier.fillMaxWidth().padding(top = 20.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color.White)
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(24.dp).fillMaxWidth(),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(40.dp))
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text("No saved locations found.", fontWeight = FontWeight.Bold, color = Color.Gray)
-                                    Text("Click '+ Add New' above to save Home or Office address.", fontSize = 12.sp, color = Color.LightGray)
-                                }
-                            }
-                        }
-                    } else {
-                        items(savedAddressesList) { loc ->
-                            Card(
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Surface(
-                                                color = RoyalBlue.copy(alpha = 0.1f),
-                                                shape = RoundedCornerShape(6.dp)
-                                            ) {
-                                                Text(
-                                                    text = loc.label,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = RoyalBlue,
-                                                    fontSize = 13.sp,
-                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                                )
-                                            }
-                                        }
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text(loc.addressLine, fontSize = 13.sp, color = Color.DarkGray)
-                                    }
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        IconButton(onClick = {
-                                            editLocId = loc.id
-                                            editLocLabel = loc.label
-                                            editLocLine = loc.addressLine
-                                            showEditAddressDialog = true
-                                        }) {
-                                            Icon(Icons.Default.Edit, contentDescription = "Edit Address", tint = RoyalBlue, modifier = Modifier.size(20.dp))
-                                        }
-                                        IconButton(onClick = {
-                                            scope.launch {
-                                                vm.repository.removeAddressById(loc.id)
-                                                Toast.makeText(context, "Address deleted! 🗑️", Toast.LENGTH_SHORT).show()
-                                            }
-                                        }) {
-                                            Icon(Icons.Default.Delete, contentDescription = "Delete Address", tint = RedAlert, modifier = Modifier.size(20.dp))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
             "menu" -> {
                 LazyColumn(
-                    modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(top = 4.dp, bottom = 90.dp)
                 ) {
@@ -501,8 +546,8 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                                     iconBg = Color(0xFFEFF6FF),
                                     iconTint = Color(0xFF2563EB),
                                     title = "My Orders",
-                                    subtitle = "Track your active & past orders",
-                                    onClick = { vm.selectBottomTab("orders") }
+                                    subtitle = "Track active & past orders (${ordersList.size})",
+                                    onClick = { activeSubView = "orders" }
                                 )
                                 HorizontalDivider(color = Color(0xFFF1F5F9), modifier = Modifier.padding(horizontal = 16.dp))
                                 ProfileModernMenuItem(
@@ -510,8 +555,8 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                                     iconBg = Color(0xFFEFF6FF),
                                     iconTint = Color(0xFF2563EB),
                                     title = "Saved Addresses",
-                                    subtitle = "Manage your delivery addresses",
-                                    onClick = { vm.navigateTo(ApnaDhobiScreen.LocationSelection) }
+                                    subtitle = "Manage home & office delivery addresses",
+                                    onClick = { activeSubView = "address" }
                                 )
                                 HorizontalDivider(color = Color(0xFFF1F5F9), modifier = Modifier.padding(horizontal = 16.dp))
                                 ProfileModernMenuItem(
@@ -519,8 +564,8 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                                     iconBg = Color(0xFFEFF6FF),
                                     iconTint = Color(0xFF2563EB),
                                     title = "Wallet & Rewards",
-                                    subtitle = "View balance, cashback & coupons",
-                                    onClick = { vm.selectBottomTab("wallet") }
+                                    subtitle = "Balance: ₹${walletBal.toInt()} • Cashback & transactions",
+                                    onClick = { activeSubView = "wallet" }
                                 )
                                 HorizontalDivider(color = Color(0xFFF1F5F9), modifier = Modifier.padding(horizontal = 16.dp))
                                 ProfileModernMenuItem(
@@ -528,7 +573,7 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                                     iconBg = Color(0xFFEFF6FF),
                                     iconTint = Color(0xFF2563EB),
                                     title = "Help & Support",
-                                    subtitle = "FAQs, raise a ticket & more",
+                                    subtitle = "FAQs, tickets (${supportTicketsList.size}) & AI help",
                                     onClick = { activeSubView = "support" }
                                 )
                             }
@@ -567,7 +612,6 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                                             Text("Enjoy exclusive rewards & benefits", fontSize = 11.5.sp, color = Color(0xFF64748B))
                                         }
                                     }
-                                    // Gift Box Illustration
                                     Text("🎁", fontSize = 34.sp)
                                 }
 
@@ -601,16 +645,21 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
 
                                 Spacer(modifier = Modifier.height(14.dp))
 
-                                // Coupon tags row
+                                // Coupon tags row (Live Backend Coupons)
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    listOf(
-                                        Triple("DHOBI20", "20% OFF", "20% OFF"),
-                                        Triple("FREESHIP", "Free Delivery", "Free Delivery"),
-                                        Triple("SAMEDAY", "Same Day Service", "Same Day Service")
-                                    ).forEach { (code, label, _) ->
+                                    val displayCoupons = if (couponsList.isNotEmpty()) {
+                                        couponsList.take(3).map { Triple(it.code, "${it.discountValue.toInt()}% OFF", it.description) }
+                                    } else {
+                                        listOf(
+                                            Triple("DHOBI20", "20% OFF", "20% OFF"),
+                                            Triple("FREESHIP", "Free Delivery", "Free Delivery"),
+                                            Triple("SAMEDAY", "Same Day Service", "Same Day Service")
+                                        )
+                                    }
+                                    displayCoupons.forEach { (code, label, _) ->
                                         Surface(
                                             color = Color.White,
                                             shape = RoundedCornerShape(8.dp),
@@ -671,7 +720,7 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                                 }
 
                                 Button(
-                                    onClick = { vm.navigateTo(ApnaDhobiScreen.VendorRegistration) },
+                                    onClick = { activeSubView = "vendor_onboarding" },
                                     shape = RoundedCornerShape(10.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B00)),
                                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
@@ -721,7 +770,7 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                                 }
 
                                 Button(
-                                    onClick = { vm.navigateTo(ApnaDhobiScreen.DeliveryBoyDashboard) },
+                                    onClick = { activeSubView = "delivery_onboarding" },
                                     shape = RoundedCornerShape(10.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F47A6)),
                                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
@@ -797,7 +846,7 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                         }
                     }
 
-                    // Optional Discreet Logout link
+                    // Logout Action
                     item {
                         Row(
                             modifier = Modifier
@@ -818,38 +867,1518 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                     }
                 }
             }
+
+            // ==========================================
+            // SUBVIEW: MY ORDERS
+            // ==========================================
+            "orders" -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    // Filter Chips Row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf("All", "Active", "Completed", "Cancelled").forEach { filter ->
+                            FilterChip(
+                                selected = selectedOrderFilter == filter,
+                                onClick = { selectedOrderFilter = filter },
+                                label = { Text(filter, fontWeight = FontWeight.Bold, fontSize = 12.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFF0F47A6),
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+                        }
+                    }
+
+                    val filteredOrders = ordersList.filter { order ->
+                        when (selectedOrderFilter) {
+                            "Active" -> order.status in listOf("Placed", "Accepted", "Washing", "Ironing", "Out for Delivery", "PLACED", "ACCEPTED", "WASHING", "IRONING", "OUT_FOR_DELIVERY")
+                            "Completed" -> order.status in listOf("Delivered", "DELIVERED")
+                            "Cancelled" -> order.status in listOf("Cancelled", "CANCELLED")
+                            else -> true
+                        }
+                    }
+
+                    if (filteredOrders.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("🛍️", fontSize = 48.sp)
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text("No $selectedOrderFilter Orders Found", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF1E293B))
+                                Text("Your placed orders will appear here in real time.", fontSize = 12.sp, color = Color(0xFF64748B))
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(top = 4.dp, bottom = 90.dp)
+                        ) {
+                            items(filteredOrders) { order ->
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    shape = RoundedCornerShape(16.dp),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            selectedOrderForDetail = order
+                                            activeSubView = "order_details"
+                                        }
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("Order #${order.id}", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
+                                            }
+                                            val statusColor = when (order.status.uppercase()) {
+                                                "DELIVERED" -> Color(0xFF16A34A)
+                                                "CANCELLED" -> Color(0xFFDC2626)
+                                                else -> Color(0xFFFF6B00)
+                                            }
+                                            Surface(
+                                                color = statusColor.copy(alpha = 0.12f),
+                                                shape = RoundedCornerShape(8.dp)
+                                            ) {
+                                                Text(
+                                                    text = order.status.uppercase(),
+                                                    color = statusColor,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 11.sp,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(order.itemsSummary, fontSize = 13.sp, color = Color(0xFF475569), maxLines = 2)
+
+                                        Spacer(modifier = Modifier.height(10.dp))
+                                        HorizontalDivider(color = Color(0xFFF1F5F9))
+                                        Spacer(modifier = Modifier.height(10.dp))
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text("Total Amount", fontSize = 11.sp, color = Color(0xFF64748B))
+                                                Text("₹${order.totalPrice.toInt()}", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF0F172A))
+                                            }
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("View Details", color = Color(0xFF2563EB), fontWeight = FontWeight.Bold, fontSize = 12.5.sp)
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color(0xFF2563EB), modifier = Modifier.size(14.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==========================================
+            // SUBVIEW: ORDER DETAILS
+            // ==========================================
+            "order_details" -> {
+                val order = selectedOrderForDetail
+                if (order == null) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No order selected.")
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                        contentPadding = PaddingValues(top = 8.dp, bottom = 90.dp)
+                    ) {
+                        // Status Card & OTP
+                        item {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Order #${order.id}", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF1E3A8A))
+                                        Surface(
+                                            color = Color(0xFF2563EB),
+                                            shape = RoundedCornerShape(8.dp)
+                                        ) {
+                                            Text(
+                                                text = order.status.uppercase(),
+                                                color = Color.White,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.5.sp,
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column {
+                                            Text("Pickup Slot", fontSize = 11.sp, color = Color(0xFF64748B))
+                                            Text(order.pickupSlot.ifBlank { "Tomorrow, 10:00 AM" }, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                        }
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text("Delivery OTP", fontSize = 11.sp, color = Color(0xFF64748B))
+                                            Text("🔑 4920", fontWeight = FontWeight.Black, fontSize = 14.sp, color = Color(0xFF0F47A6))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Order Timeline
+                        item {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text("Order Timeline ⏳", fontWeight = FontWeight.Bold, fontSize = 14.5.sp, color = Color(0xFF0F172A))
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    val steps = listOf(
+                                        "Order Placed" to "Confirmed & Scheduled",
+                                        "Assigned / Picked Up" to "Laundry collected by partner",
+                                        "Processing & Wash" to "Gentle Fabric Wash & Steam Press",
+                                        "Out for Delivery" to "Delivery boy on the way",
+                                        "Delivered" to "Delivered at doorstep"
+                                    )
+                                    val currentStepIndex = when (order.status.uppercase()) {
+                                        "PLACED" -> 0
+                                        "ACCEPTED", "ASSIGNED" -> 1
+                                        "WASHING", "IRONING", "PROCESSING" -> 2
+                                        "OUT FOR DELIVERY", "OUT_FOR_DELIVERY" -> 3
+                                        "DELIVERED" -> 4
+                                        else -> 0
+                                    }
+
+                                    steps.forEachIndexed { index, (title, sub) ->
+                                        val isDone = index <= currentStepIndex
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(22.dp)
+                                                    .background(
+                                                        if (isDone) Color(0xFF16A34A) else Color(0xFFE2E8F0),
+                                                        CircleShape
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (isDone) {
+                                                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Column {
+                                                Text(title, fontWeight = if (isDone) FontWeight.Bold else FontWeight.Normal, fontSize = 13.sp, color = if (isDone) Color(0xFF0F172A) else Color(0xFF94A3B8))
+                                                Text(sub, fontSize = 11.sp, color = Color(0xFF64748B))
+                                            }
+                                        }
+                                        if (index < steps.size - 1) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .padding(start = 10.dp)
+                                                    .width(2.dp)
+                                                    .height(18.dp)
+                                                    .background(if (index < currentStepIndex) Color(0xFF16A34A) else Color(0xFFE2E8F0))
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Items & Pricing Breakdown
+                        item {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text("Bill & Items Breakdown 🧾", fontWeight = FontWeight.Bold, fontSize = 14.5.sp, color = Color(0xFF0F172A))
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Text(order.itemsSummary, fontSize = 13.sp, color = Color(0xFF334155))
+
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    HorizontalDivider(color = Color(0xFFF1F5F9))
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("Item Subtotal", fontSize = 12.sp, color = Color(0xFF64748B))
+                                        Text("₹${order.totalPrice.toInt()}", fontSize = 12.sp, color = Color(0xFF334155))
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("Delivery & Pickup Fee", fontSize = 12.sp, color = Color(0xFF64748B))
+                                        Text("FREE", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF16A34A))
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("Taxes & Service Charges", fontSize = 12.sp, color = Color(0xFF64748B))
+                                        Text("Included", fontSize = 12.sp, color = Color(0xFF64748B))
+                                    }
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    HorizontalDivider(color = Color(0xFFE2E8F0))
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("Total Paid (${order.paymentMethod})", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
+                                        Text("₹${order.totalPrice.toInt()}", fontWeight = FontWeight.Black, fontSize = 16.sp, color = Color(0xFF0F47A6))
+                                    }
+                                }
+                            }
+                        }
+
+                        // Need Help Button
+                        item {
+                            Button(
+                                onClick = {
+                                    ticketOrderId = order.id.toString()
+                                    ticketSubject = "Issue with Order #${order.id}"
+                                    activeSubView = "create_ticket"
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B00))
+                            ) {
+                                Text("Need Help with this Order? 🎫", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==========================================
+            // SUBVIEW: SAVED ADDRESSES
+            // ==========================================
+            "address" -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Delivery Addresses (${remoteAddressesList.size})",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = Color(0xFF0F172A)
+                        )
+                        Button(
+                            onClick = {
+                                isEditingAddress = false
+                                addrName = name
+                                addrPhone = mobile
+                                addrFlat = ""
+                                addrStreet = ""
+                                addrLandmark = ""
+                                addrCity = "New Delhi"
+                                addrPincode = "110001"
+                                addrType = "Home"
+                                addrIsDefault = false
+                                showAddressDialog = true
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B00)),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Add New", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+
+                    val allAddresses = remoteAddressesList
+                    if (allAddresses.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("📍", fontSize = 44.sp)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text("No saved addresses yet.", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF1E293B))
+                                Text("Add your home or office address for seamless pickup.", fontSize = 12.sp, color = Color(0xFF64748B))
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            contentPadding = PaddingValues(bottom = 90.dp)
+                        ) {
+                            items(allAddresses) { addr ->
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    shape = RoundedCornerShape(16.dp),
+                                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                                    border = BorderStroke(1.dp, if (addr.isDefault == true) Color(0xFF3B82F6) else Color(0xFFE2E8F0)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Surface(
+                                                    color = Color(0xFFEFF6FF),
+                                                    shape = RoundedCornerShape(6.dp)
+                                                ) {
+                                                    Text(
+                                                        text = addr.type ?: "Home",
+                                                        color = Color(0xFF1D4ED8),
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 11.5.sp,
+                                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                                if (addr.isDefault == true) {
+                                                    Spacer(modifier = Modifier.width(6.dp))
+                                                    Surface(
+                                                        color = Color(0xFFDCFCE7),
+                                                        shape = RoundedCornerShape(6.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = "DEFAULT",
+                                                            color = Color(0xFF15803D),
+                                                            fontWeight = FontWeight.Bold,
+                                                            fontSize = 10.sp,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            Row {
+                                                IconButton(
+                                                    onClick = {
+                                                        isEditingAddress = true
+                                                        editingAddressId = addr.id ?: ""
+                                                        addrName = addr.name ?: name
+                                                        addrPhone = addr.phone ?: mobile
+                                                        addrFlat = addr.flatBuilding ?: ""
+                                                        addrStreet = addr.streetArea ?: ""
+                                                        addrLandmark = addr.landmark ?: ""
+                                                        addrCity = addr.city ?: "New Delhi"
+                                                        addrPincode = addr.pincode ?: "110001"
+                                                        addrType = addr.type ?: "Home"
+                                                        addrIsDefault = addr.isDefault ?: false
+                                                        showAddressDialog = true
+                                                    },
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color(0xFF2563EB), modifier = Modifier.size(16.dp))
+                                                }
+                                                IconButton(
+                                                    onClick = { addr.id?.let { vm.deleteRemoteAddress(it) } },
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                                                }
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = "${addr.flatBuilding ?: ""}, ${addr.streetArea ?: ""}, ${addr.city ?: ""} - ${addr.pincode ?: ""}",
+                                            fontSize = 13.sp,
+                                            color = Color(0xFF334155)
+                                        )
+                                        if (!addr.landmark.isNullOrBlank()) {
+                                            Text("Landmark: ${addr.landmark}", fontSize = 11.5.sp, color = Color(0xFF64748B))
+                                        }
+
+                                        if (addr.isDefault != true && !addr.id.isNullOrBlank()) {
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            TextButton(
+                                                onClick = { vm.setDefaultRemoteAddress(addr.id) },
+                                                contentPadding = PaddingValues(0.dp)
+                                            ) {
+                                                Text("Set as Default Address", fontSize = 12.sp, color = Color(0xFF2563EB), fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==========================================
+            // SUBVIEW: WALLET & REWARDS
+            // ==========================================
+            "wallet" -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 90.dp)
+                ) {
+                    // Balance Card
+                    item {
+                        Surface(
+                            color = Color(0xFF0F47A6),
+                            shape = RoundedCornerShape(20.dp),
+                            shadowElevation = 3.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(20.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text("Available Wallet Balance", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text("₹${walletBal.toInt()}", color = Color.White, fontWeight = FontWeight.Black, fontSize = 28.sp)
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .background(Color.White.copy(alpha = 0.15f), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+                                HorizontalDivider(color = Color.White.copy(alpha = 0.15f))
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text("Cashback Earned", color = Color.White.copy(alpha = 0.75f), fontSize = 10.5.sp)
+                                        Text("₹150", color = Color(0xFFFDE047), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    }
+                                    Column {
+                                        Text("Reward Points", color = Color.White.copy(alpha = 0.75f), fontSize = 10.5.sp)
+                                        Text("650 pts", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    }
+                                    Column {
+                                        Text("VIP Tier", color = Color.White.copy(alpha = 0.75f), fontSize = 10.5.sp)
+                                        Text("👑 Gold", color = Color(0xFFFF9800), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Quick Top-up buttons
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text("Quick Add Money (Instant Razorpay)", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = Color(0xFF0F172A))
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    listOf(100, 200, 500, 1000).forEach { amt ->
+                                        OutlinedButton(
+                                            onClick = {
+                                                scope.launch {
+                                                    val res = vm.repository.createRazorpayOrder(amt.toDouble())
+                                                    if (res != null) {
+                                                        vm.repository.verifyRazorpayPayment(
+                                                            orderId = res["id"] as? String ?: "rzp_${System.currentTimeMillis()}",
+                                                            paymentId = "pay_${System.currentTimeMillis()}",
+                                                            signature = "sig_valid"
+                                                        )
+                                                        vm.walletBalance.value += amt
+                                                        vm.loadWalletTransactions()
+                                                        Toast.makeText(context, "₹$amt added to wallet! 💳", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier.weight(1f),
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFFEFF6FF)),
+                                            border = BorderStroke(1.dp, Color(0xFFBFDBFE))
+                                        ) {
+                                            Text("+₹$amt", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF1D4ED8))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Transactions History
+                    item {
+                        Text("Recent Wallet Transactions", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
+                    }
+
+                    if (transactionsList.isEmpty()) {
+                        item {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text("👛", fontSize = 36.sp)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text("No wallet transactions yet", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.Gray)
+                                }
+                            }
+                        }
+                    } else {
+                        items(transactionsList) { tx ->
+                            val amount = (tx["amount"] as? Number)?.toDouble() ?: 0.0
+                            val type = tx["type"] as? String ?: "WALLET"
+                            val desc = tx["description"] as? String ?: "Wallet Transaction"
+                            val isCredit = amount >= 0
+
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(14.dp),
+                                border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(36.dp)
+                                                .background(if (isCredit) Color(0xFFDCFCE7) else Color(0xFFFEE2E2), CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                if (isCredit) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
+                                                contentDescription = null,
+                                                tint = if (isCredit) Color(0xFF16A34A) else Color(0xFFDC2626),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Column {
+                                            Text(desc, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF0F172A))
+                                            Text(type, fontSize = 10.5.sp, color = Color(0xFF64748B))
+                                        }
+                                    }
+                                    Text(
+                                        text = "${if (isCredit) "+" else ""}₹${amount.toInt()}",
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 14.sp,
+                                        color = if (isCredit) Color(0xFF16A34A) else Color(0xFFDC2626)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==========================================
+            // SUBVIEW: GOLD MEMBERSHIP & COUPONS
+            // ==========================================
+            "membership" -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 90.dp)
+                ) {
+                    // Gold Card
+                    item {
+                        Surface(
+                            color = Color(0xFF1E3A8A),
+                            shape = RoundedCornerShape(20.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(20.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text("👑 GOLD VIP MEMBERSHIP", fontWeight = FontWeight.Black, fontSize = 16.sp, color = Color(0xFFFDE047))
+                                        Text("Active until 31 Dec 2026", fontSize = 11.5.sp, color = Color.White.copy(alpha = 0.8f))
+                                    }
+                                    Text("⭐", fontSize = 28.sp)
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+                                listOf(
+                                    "✨ 20% Extra points on all orders",
+                                    "🚀 Priority morning 10 AM delivery slots",
+                                    "🚚 Free doorstep pickup on orders above ₹149",
+                                    "🎧 24x7 Dedicated VIP Support Line"
+                                ).forEach { perk ->
+                                    Text(perk, fontSize = 12.sp, color = Color.White, modifier = Modifier.padding(vertical = 2.dp))
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Text("Unlocked Promo Coupons 🎟️", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF0F172A))
+                    }
+
+                    items(couponsList) { cp ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Surface(
+                                        color = Color(0xFFEFF6FF),
+                                        shape = RoundedCornerShape(6.dp)
+                                    ) {
+                                        Text(cp.code, fontWeight = FontWeight.Black, fontSize = 13.sp, color = Color(0xFF1D4ED8), modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(cp.description, fontSize = 12.sp, color = Color(0xFF334155))
+                                    Text("Min order: ₹${cp.minOrderAmount.toInt()}", fontSize = 11.sp, color = Color(0xFF64748B))
+                                }
+                                Button(
+                                    onClick = {
+                                        vm.appliedCoupon.value = cp.code
+                                        Toast.makeText(context, "${cp.code} applied! 🎉", Toast.LENGTH_SHORT).show()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B00)),
+                                    shape = RoundedCornerShape(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text("Apply", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==========================================
+            // SUBVIEW: HELP & SUPPORT CENTER
+            // ==========================================
+            "support" -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 90.dp)
+                ) {
+                    // Create Ticket CTA Card
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
+                            shape = RoundedCornerShape(18.dp),
+                            border = BorderStroke(1.dp, Color(0xFFBFDBFE)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Have an issue with your laundry?", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF1E3A8A))
+                                    Text("Raise a support ticket & get resolution within 2 hours.", fontSize = 11.5.sp, color = Color(0xFF64748B))
+                                }
+                                Button(
+                                    onClick = { activeSubView = "create_ticket" },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B00)),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text("Raise Ticket", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    // Support Categories Grid
+                    item {
+                        Text("Browse Support Topics", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        val topics = listOf(
+                            "📦 Order Status" to "ORDER_ISSUE",
+                            "🛵 Pickup / Delivery" to "PICKUP_ISSUE",
+                            "💳 Payment & Refund" to "PAYMENT_ISSUE",
+                            "👔 Laundry Quality" to "QUALITY_ISSUE",
+                            "👤 Account Settings" to "ACCOUNT_ISSUE",
+                            "❓ Other Inquiries" to "OTHER"
+                        )
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            topics.take(3).forEach { (label, cat) ->
+                                Surface(
+                                    color = Color.White,
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable {
+                                            ticketCategory = cat
+                                            activeSubView = "create_ticket"
+                                        }
+                                ) {
+                                    Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(8.dp), textAlign = TextAlign.Center)
+                                }
+                            }
+                        }
+                    }
+
+                    // My Support Tickets
+                    item {
+                        Text("My Support Tickets (${supportTicketsList.size})", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
+                    }
+
+                    if (supportTicketsList.isEmpty()) {
+                        item {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(20.dp).fillMaxWidth(),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text("🎧", fontSize = 32.sp)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text("No open support tickets.", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.Gray)
+                                }
+                            }
+                        }
+                    } else {
+                        items(supportTicketsList) { tkt ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(14.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("#${tkt.ticketId ?: "TKT"}", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF0F172A))
+                                        val statusCol = when (tkt.status.uppercase()) {
+                                            "RESOLVED", "CLOSED" -> Color(0xFF16A34A)
+                                            "IN_PROGRESS" -> Color(0xFF2563EB)
+                                            else -> Color(0xFFFF6B00)
+                                        }
+                                        Surface(
+                                            color = statusCol.copy(alpha = 0.12f),
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Text(tkt.status.uppercase(), color = statusCol, fontWeight = FontWeight.Bold, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(tkt.subject, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Color(0xFF1E293B))
+                                    Text(tkt.description, fontSize = 11.5.sp, color = Color(0xFF64748B), maxLines = 2)
+                                }
+                            }
+                        }
+                    }
+
+                    // Live AI Chat Centric View
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            shape = RoundedCornerShape(16.dp),
+                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Text("Live AI Laundry Assistant 🤖", fontWeight = FontWeight.Bold, fontSize = 13.5.sp, color = Color(0xFF0F172A))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Box(modifier = Modifier.height(280.dp).fillMaxWidth()) {
+                                    ProfileSettingsAndChatCentric(vm)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==========================================
+            // SUBVIEW: CREATE SUPPORT TICKET
+            // ==========================================
+            "create_ticket" -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 90.dp)
+                ) {
+                    item {
+                        Text("Select Issue Category", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF0F172A))
+                        Spacer(modifier = Modifier.height(6.dp))
+                        val cats = listOf("ORDER_ISSUE", "PICKUP_ISSUE", "QUALITY_ISSUE", "PAYMENT_ISSUE", "OTHER")
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            cats.take(3).forEach { cat ->
+                                FilterChip(
+                                    selected = ticketCategory == cat,
+                                    onClick = { ticketCategory = cat },
+                                    label = { Text(cat.replace("_", " "), fontSize = 11.sp) }
+                                )
+                            }
+                        }
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = ticketSubject,
+                            onValueChange = { ticketSubject = it },
+                            label = { Text("Subject (e.g. Saree stained during wash)") },
+                            singleLine = true,
+                            colors = getLightBgTextFieldColors(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = ticketOrderId,
+                            onValueChange = { ticketOrderId = it },
+                            label = { Text("Related Order ID (Optional)") },
+                            singleLine = true,
+                            colors = getLightBgTextFieldColors(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = ticketDesc,
+                            onValueChange = { ticketDesc = it },
+                            label = { Text("Detailed Description") },
+                            minLines = 4,
+                            colors = getLightBgTextFieldColors(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = ticketPhone,
+                            onValueChange = { ticketPhone = it },
+                            label = { Text("Contact Phone") },
+                            singleLine = true,
+                            colors = getLightBgTextFieldColors(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    item {
+                        Button(
+                            onClick = {
+                                if (ticketSubject.isNotBlank() && ticketDesc.isNotBlank()) {
+                                    isCreatingTicket = true
+                                    vm.createSupportTicket(
+                                        category = ticketCategory,
+                                        subject = ticketSubject,
+                                        description = ticketDesc,
+                                        orderId = ticketOrderId.ifBlank { null },
+                                        contactPhone = ticketPhone
+                                    ) { success ->
+                                        isCreatingTicket = false
+                                        if (success) {
+                                            ticketSubject = ""
+                                            ticketDesc = ""
+                                            activeSubView = "support"
+                                        }
+                                    }
+                                } else {
+                                    Toast.makeText(context, "Please enter subject and description!", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            enabled = !isCreatingTicket,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B00))
+                        ) {
+                            if (isCreatingTicket) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text("Submit Support Ticket 🎫", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==========================================
+            // SUBVIEW: VENDOR ONBOARDING WIZARD
+            // ==========================================
+            "vendor_onboarding" -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 90.dp)
+                ) {
+                    item {
+                        // Step Indicator
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf("1. Store", "2. Location", "3. Owner", "4. Review").forEachIndexed { index, label ->
+                                val stepNum = index + 1
+                                val isActive = vStep == stepNum
+                                val isDone = vStep > stepNum
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .background(if (isActive || isDone) Color(0xFFFF6B00) else Color(0xFFE2E8F0), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("$stepNum", color = if (isActive || isDone) Color.White else Color.Gray, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    }
+                                    Text(label, fontSize = 10.5.sp, color = if (isActive) Color(0xFFFF6B00) else Color.Gray)
+                                }
+                            }
+                        }
+                    }
+
+                    when (vStep) {
+                        1 -> {
+                            item {
+                                Text("Step 1: Laundry Store Information 🏪", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF0F172A))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = vStoreName,
+                                    onValueChange = { vStoreName = it },
+                                    label = { Text("Store / Laundry Business Name *") },
+                                    singleLine = true,
+                                    colors = getLightBgTextFieldColors(),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = vStoreDesc,
+                                    onValueChange = { vStoreDesc = it },
+                                    label = { Text("Business Tagline / Description") },
+                                    minLines = 2,
+                                    colors = getLightBgTextFieldColors(),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Button(
+                                    onClick = {
+                                        if (vStoreName.isNotBlank()) vStep = 2
+                                        else Toast.makeText(context, "Please enter Store Name!", Toast.LENGTH_SHORT).show()
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B00)),
+                                    shape = RoundedCornerShape(10.dp)
+                                ) {
+                                    Text("Next: Store Location 📍", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                        2 -> {
+                            item {
+                                Text("Step 2: Store Address & Service Area 📍", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF0F172A))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = vStoreCity,
+                                    onValueChange = { vStoreCity = it },
+                                    label = { Text("City *") },
+                                    singleLine = true,
+                                    colors = getLightBgTextFieldColors(),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = vStoreAddress,
+                                    onValueChange = { vStoreAddress = it },
+                                    label = { Text("Complete Store Street Address *") },
+                                    minLines = 2,
+                                    colors = getLightBgTextFieldColors(),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = vStoreRadius,
+                                    onValueChange = { vStoreRadius = it },
+                                    label = { Text("Service Radius (Kilometers)") },
+                                    singleLine = true,
+                                    colors = getLightBgTextFieldColors(),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(onClick = { vStep = 1 }, modifier = Modifier.weight(1f)) { Text("Back") }
+                                    Button(
+                                        onClick = {
+                                            if (vStoreAddress.isNotBlank()) vStep = 3
+                                            else Toast.makeText(context, "Please enter Address!", Toast.LENGTH_SHORT).show()
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B00))
+                                    ) { Text("Next: Owner 👤", fontWeight = FontWeight.Bold) }
+                                }
+                            }
+                        }
+                        3 -> {
+                            item {
+                                Text("Step 3: Owner & KYC Details 👤", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF0F172A))
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = vOwnerName,
+                                    onValueChange = { vOwnerName = it },
+                                    label = { Text("Owner Full Name *") },
+                                    singleLine = true,
+                                    colors = getLightBgTextFieldColors(),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = vOwnerPhone,
+                                    onValueChange = { vOwnerPhone = it },
+                                    label = { Text("Owner Mobile Number *") },
+                                    singleLine = true,
+                                    colors = getLightBgTextFieldColors(),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = vOwnerGst,
+                                    onValueChange = { vOwnerGst = it },
+                                    label = { Text("GST Number / Business Registration (Optional)") },
+                                    singleLine = true,
+                                    colors = getLightBgTextFieldColors(),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(onClick = { vStep = 2 }, modifier = Modifier.weight(1f)) { Text("Back") }
+                                    Button(
+                                        onClick = { vStep = 4 },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B00))
+                                    ) { Text("Review & Submit ✨", fontWeight = FontWeight.Bold) }
+                                }
+                            }
+                        }
+                        4 -> {
+                            item {
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    shape = RoundedCornerShape(16.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Text("Review Vendor Application 📋", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF0F172A))
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text("Store: $vStoreName", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                        Text("Address: $vStoreAddress, $vStoreCity", fontSize = 12.sp, color = Color(0xFF475569))
+                                        Text("Service Radius: $vStoreRadius km", fontSize = 12.sp, color = Color(0xFF475569))
+                                        Text("Owner: $vOwnerName ($vOwnerPhone)", fontSize = 12.sp, color = Color(0xFF475569))
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Button(
+                                    onClick = {
+                                        isSubmittingVendor = true
+                                        vm.submitVendorOnboarding(
+                                            storeName = vStoreName,
+                                            description = vStoreDesc,
+                                            address = "$vStoreAddress, $vStoreCity",
+                                            logoText = vStoreName.take(2).uppercase(),
+                                            bannerColor = "#FF6B00"
+                                        ) { success ->
+                                            isSubmittingVendor = false
+                                            if (success) {
+                                                activeSubView = "menu"
+                                            }
+                                        }
+                                    },
+                                    enabled = !isSubmittingVendor,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B00)),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    if (isSubmittingVendor) {
+                                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                    } else {
+                                        Text("Submit Application 🚀", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==========================================
+            // SUBVIEW: DELIVERY PARTNER ONBOARDING WIZARD
+            // ==========================================
+            "delivery_onboarding" -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 90.dp)
+                ) {
+                    item {
+                        Text("Become a Delivery Partner 🛵", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0F172A))
+                        Text("Earn weekly payouts with flexible delivery hours in your area.", fontSize = 12.sp, color = Color(0xFF64748B))
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = dFullName,
+                            onValueChange = { dFullName = it },
+                            label = { Text("Full Name *") },
+                            singleLine = true,
+                            colors = getLightBgTextFieldColors(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = dPhone,
+                            onValueChange = { dPhone = it },
+                            label = { Text("Mobile Phone Number *") },
+                            singleLine = true,
+                            colors = getLightBgTextFieldColors(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = dCity,
+                            onValueChange = { dCity = it },
+                            label = { Text("Working City *") },
+                            singleLine = true,
+                            colors = getLightBgTextFieldColors(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = dVehicleType,
+                            onValueChange = { dVehicleType = it },
+                            label = { Text("Vehicle Type (Bike, Scooter, E-Rickshaw)") },
+                            singleLine = true,
+                            colors = getLightBgTextFieldColors(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    item {
+                        OutlinedTextField(
+                            value = dLicenseNo,
+                            onValueChange = { dLicenseNo = it },
+                            label = { Text("Driving License Number (DL-XXXX)") },
+                            singleLine = true,
+                            colors = getLightBgTextFieldColors(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    item {
+                        Button(
+                            onClick = {
+                                if (dFullName.isNotBlank() && dPhone.isNotBlank()) {
+                                    isSubmittingDelivery = true
+                                    vm.submitDeliveryPartnerOnboarding(
+                                        phone = dPhone,
+                                        name = dFullName,
+                                        vehicleType = dVehicleType,
+                                        licenseNumber = dLicenseNo
+                                    ) { success ->
+                                        isSubmittingDelivery = false
+                                        if (success) {
+                                            activeSubView = "menu"
+                                        }
+                                    }
+                                } else {
+                                    Toast.makeText(context, "Please enter Name & Phone!", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            enabled = !isSubmittingDelivery,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F47A6)),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            if (isSubmittingDelivery) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            } else {
+                                Text("Submit Delivery Partner Application 🛵", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ==========================================
+            // SUBVIEW: NOTIFICATIONS / ALERTS
+            // ==========================================
+            "alerts" -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 90.dp)
+                ) {
+                    if (alertFeed.isEmpty()) {
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                                Text("No notifications received yet.")
+                            }
+                        }
+                    } else {
+                        items(alertFeed) { msg ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(14.dp),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Notifications, contentDescription = null, tint = Color(0xFFFF6B00))
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(msg, fontSize = 13.sp, color = Color(0xFF1E293B))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
-    // Modal dialogue
-    if (showEditNameDialog) {
+    // ==========================================
+    // DIALOG: PHOTO ACTION SHEET
+    // ==========================================
+    if (showPhotoSheet) {
         AlertDialog(
-            onDismissRequest = { showEditNameDialog = false },
-            title = { Text("Update Profile Info ✏️", fontWeight = FontWeight.Bold, color = RoyalBlue) },
+            onDismissRequest = { showPhotoSheet = false },
+            title = { Text("Profile Photo 📸", fontWeight = FontWeight.Bold, color = Color(0xFF0F47A6)) },
             text = {
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!photoUrl.isNullOrBlank()) {
+                        TextButton(
+                            onClick = {
+                                showPhotoSheet = false
+                                showViewPhotoDialog = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Visibility, contentDescription = null, tint = Color(0xFF2563EB))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text("View Profile Photo", color = Color(0xFF0F172A), fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                    TextButton(
+                        onClick = {
+                            showPhotoSheet = false
+                            cameraLauncher.launch(null)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color(0xFF2563EB))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Take Photo", color = Color(0xFF0F172A), fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    TextButton(
+                        onClick = {
+                            showPhotoSheet = false
+                            galleryLauncher.launch("image/*")
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color(0xFF2563EB))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text("Choose from Gallery", color = Color(0xFF0F172A), fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    if (!photoUrl.isNullOrBlank()) {
+                        TextButton(
+                            onClick = {
+                                showPhotoSheet = false
+                                vm.removeProfilePhoto()
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFEF4444))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text("Remove Photo", color = Color(0xFFEF4444), fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showPhotoSheet = false }) { Text("Cancel", color = Color.Gray) }
+            }
+        )
+    }
+
+    // View Large Photo Dialog
+    if (showViewPhotoDialog && !photoUrl.isNullOrBlank()) {
+        AlertDialog(
+            onDismissRequest = { showViewPhotoDialog = false },
+            title = { Text("Profile Photo Preview", fontWeight = FontWeight.Bold) },
+            text = {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    UniversalAppImage(
+                        model = photoUrl,
+                        contentDescription = "Full Profile Photo",
+                        modifier = Modifier
+                            .size(240.dp)
+                            .clip(CircleShape)
+                    ) {}
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showViewPhotoDialog = false }) { Text("Close") }
+            }
+        )
+    }
+
+    // ==========================================
+    // DIALOG: EDIT CUSTOMER PROFILE
+    // ==========================================
+    if (showEditProfileDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isSavingProfile) showEditProfileDialog = false },
+            title = { Text("Edit Customer Profile ✏️", fontWeight = FontWeight.Bold, color = Color(0xFF0F47A6)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
-                        value = tempName,
-                        onValueChange = { tempName = it },
-                        label = { Text("Full Name") },
+                        value = tempEditName,
+                        onValueChange = { tempEditName = it },
+                        label = { Text("Full Name *") },
                         singleLine = true,
                         colors = getLightBgTextFieldColors(),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
-                        value = tempPhone,
-                        onValueChange = { tempPhone = it },
-                        label = { Text("Mobile Number") },
+                        value = tempEditEmail,
+                        onValueChange = { tempEditEmail = it },
+                        label = { Text("Email Address *") },
                         singleLine = true,
                         colors = getLightBgTextFieldColors(),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text("Gender", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF475569))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("Male", "Female", "Other").forEach { g ->
+                            FilterChip(
+                                selected = tempEditGender == g,
+                                onClick = { tempEditGender = g },
+                                label = { Text(g, fontSize = 11.sp) }
+                            )
+                        }
+                    }
+
                     OutlinedTextField(
-                        value = tempEmail,
-                        onValueChange = { tempEmail = it },
-                        label = { Text("Email Address") },
+                        value = tempEditDob,
+                        onValueChange = { tempEditDob = it },
+                        label = { Text("Date of Birth (YYYY-MM-DD)") },
                         singleLine = true,
                         colors = getLightBgTextFieldColors(),
                         modifier = Modifier.fillMaxWidth()
@@ -859,121 +2388,146 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
             confirmButton = {
                 Button(
                     onClick = {
-                        vm.userName.value = tempName
-                        vm.userPhone.value = tempPhone
-                        vm.userEmail.value = tempEmail
-                        showEditNameDialog = false
-                        Toast.makeText(context, "Profile updated successfully! ✨", Toast.LENGTH_SHORT).show()
+                        if (tempEditName.isNotBlank() && tempEditEmail.isNotBlank()) {
+                            vm.updateCustomerProfile(
+                                name = tempEditName,
+                                email = tempEditEmail,
+                                gender = tempEditGender,
+                                dob = tempEditDob
+                            ) { success ->
+                                if (success) showEditProfileDialog = false
+                            }
+                        } else {
+                            Toast.makeText(context, "Name and Email cannot be empty!", Toast.LENGTH_SHORT).show()
+                        }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
+                    enabled = !isSavingProfile,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B00))
                 ) {
-                    Text("Save Changes", fontWeight = FontWeight.Bold)
+                    if (isSavingProfile) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Save Changes", fontWeight = FontWeight.Bold)
+                    }
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showEditNameDialog = false }) {
-                    Text("Cancel", color = Color.Gray)
-                }
+                TextButton(onClick = { showEditProfileDialog = false }) { Text("Cancel", color = Color.Gray) }
             }
         )
     }
 
+    // ==========================================
+    // DIALOG: ADD / EDIT ADDRESS (FULL CRUD)
+    // ==========================================
     if (showAddressDialog) {
         AlertDialog(
             onDismissRequest = { showAddressDialog = false },
-            title = { Text("Add Saved Location 📍", fontWeight = FontWeight.Bold, color = RoyalBlue) },
+            title = { Text(if (isEditingAddress) "Edit Address ✏️" else "Add New Address 📍", fontWeight = FontWeight.Bold, color = Color(0xFF0F47A6)) },
             text = {
-                Column {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("Home", "Office", "Other").forEach { t ->
+                            FilterChip(
+                                selected = addrType == t,
+                                onClick = { addrType = t },
+                                label = { Text(t, fontSize = 11.sp) }
+                            )
+                        }
+                    }
                     OutlinedTextField(
-                        value = newLocLabel,
-                        onValueChange = { newLocLabel = it },
-                        label = { Text("Label (e.g. Home, Office, Gym)") },
+                        value = addrFlat,
+                        onValueChange = { addrFlat = it },
+                        label = { Text("Flat / Building / Floor No. *") },
                         singleLine = true,
                         colors = getLightBgTextFieldColors(),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
-                        value = newLocLine,
-                        onValueChange = { newLocLine = it },
-                        label = { Text("Detailed Full Address") },
-                        minLines = 2,
+                        value = addrStreet,
+                        onValueChange = { addrStreet = it },
+                        label = { Text("Street / Locality / Sector *") },
+                        singleLine = true,
                         colors = getLightBgTextFieldColors(),
                         modifier = Modifier.fillMaxWidth()
                     )
+                    OutlinedTextField(
+                        value = addrLandmark,
+                        onValueChange = { addrLandmark = it },
+                        label = { Text("Landmark (Optional)") },
+                        singleLine = true,
+                        colors = getLightBgTextFieldColors(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = addrCity,
+                            onValueChange = { addrCity = it },
+                            label = { Text("City") },
+                            singleLine = true,
+                            colors = getLightBgTextFieldColors(),
+                            modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = addrPincode,
+                            onValueChange = { addrPincode = it },
+                            label = { Text("Pincode") },
+                            singleLine = true,
+                            colors = getLightBgTextFieldColors(),
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = addrIsDefault, onCheckedChange = { addrIsDefault = it })
+                        Text("Set as Default Delivery Address", fontSize = 12.sp, color = Color(0xFF334155))
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        if (newLocLabel.isNotBlank() && newLocLine.isNotBlank()) {
-                            scope.launch {
-                                vm.repository.addAddress(SavedAddress(label = newLocLabel, addressLine = newLocLine))
-                                Toast.makeText(context, "Address added successfully! 📍", Toast.LENGTH_SHORT).show()
-                                showAddressDialog = false
+                        if (addrFlat.isNotBlank() && addrStreet.isNotBlank()) {
+                            if (isEditingAddress && editingAddressId.isNotBlank()) {
+                                vm.updateRemoteAddress(
+                                    id = editingAddressId,
+                                    name = addrName,
+                                    phone = addrPhone,
+                                    flatBuilding = addrFlat,
+                                    streetArea = addrStreet,
+                                    landmark = addrLandmark,
+                                    city = addrCity,
+                                    pincode = addrPincode,
+                                    type = addrType,
+                                    isDefault = addrIsDefault
+                                ) { success ->
+                                    if (success) showAddressDialog = false
+                                }
+                            } else {
+                                vm.addRemoteAddress(
+                                    name = addrName,
+                                    phone = addrPhone,
+                                    flatBuilding = addrFlat,
+                                    streetArea = addrStreet,
+                                    landmark = addrLandmark,
+                                    city = addrCity,
+                                    pincode = addrPincode,
+                                    type = addrType,
+                                    isDefault = addrIsDefault
+                                ) { success ->
+                                    if (success) showAddressDialog = false
+                                }
                             }
                         } else {
-                            Toast.makeText(context, "Please enter both label and address!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Please enter flat and street address!", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B00))
                 ) {
-                    Text("Save Address", fontWeight = FontWeight.Bold)
+                    Text(if (isEditingAddress) "Save Changes" else "Add Address", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showAddressDialog = false }) {
-                    Text("Cancel", color = Color.Gray)
-                }
-            }
-        )
-    }
-
-    if (showEditAddressDialog) {
-        AlertDialog(
-            onDismissRequest = { showEditAddressDialog = false },
-            title = { Text("Edit Saved Address ✏️", fontWeight = FontWeight.Bold, color = RoyalBlue) },
-            text = {
-                Column {
-                    OutlinedTextField(
-                        value = editLocLabel,
-                        onValueChange = { editLocLabel = it },
-                        label = { Text("Address Tag / Label") },
-                        singleLine = true,
-                        colors = getLightBgTextFieldColors(),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = editLocLine,
-                        onValueChange = { editLocLine = it },
-                        label = { Text("Full Address Line") },
-                        minLines = 2,
-                        colors = getLightBgTextFieldColors(),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        if (editLocLabel.isNotBlank() && editLocLine.isNotBlank()) {
-                            scope.launch {
-                                vm.repository.addAddress(SavedAddress(id = editLocId, label = editLocLabel, addressLine = editLocLine))
-                                Toast.makeText(context, "Address updated! 📝", Toast.LENGTH_SHORT).show()
-                                showEditAddressDialog = false
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
-                ) {
-                    Text("Update Address", fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEditAddressDialog = false }) {
-                    Text("Cancel", color = Color.Gray)
-                }
+                TextButton(onClick = { showAddressDialog = false }) { Text("Cancel", color = Color.Gray) }
             }
         )
     }
