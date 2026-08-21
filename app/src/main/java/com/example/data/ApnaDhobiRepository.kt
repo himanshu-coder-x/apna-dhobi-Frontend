@@ -467,15 +467,17 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
         }
     }
 
-    suspend fun registerVendorDetailed(name: String, description: String, address: String, logoText: String, bannerColor: String): Pair<Boolean, String> {
+    suspend fun registerVendorDetailed(name: String, description: String, address: String, logoText: String, bannerColor: String, phone: String = "", ownerName: String = ""): Pair<Boolean, String> {
         return try {
-            val body = mapOf(
+            val body = mutableMapOf(
                 "name" to name,
                 "description" to description,
                 "address" to address,
                 "logoText" to logoText,
                 "bannerColor" to bannerColor
             )
+            if (phone.isNotBlank()) body["phone"] = phone
+            if (ownerName.isNotBlank()) body["ownerName"] = ownerName
             val response = vendorsApi.register(body)
             if (response.isSuccessful) {
                 val v = response.body()

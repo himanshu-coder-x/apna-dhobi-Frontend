@@ -2078,7 +2078,9 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                                             description = vStoreDesc,
                                             address = "$vStoreAddress, $vStoreCity",
                                             logoText = vStoreName.take(2).uppercase(),
-                                            bannerColor = "#FF6B00"
+                                            bannerColor = "#FF6B00",
+                                            phone = vOwnerPhone,
+                                            ownerName = vOwnerName
                                         ) { success, msg ->
                                             isSubmittingVendor = false
                                             onboardingFeedbackSuccess = success

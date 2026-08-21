@@ -644,10 +644,14 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
         address: String,
         logoText: String,
         bannerColor: String,
+        phone: String = "",
+        ownerName: String = "",
         onComplete: (Boolean, String) -> Unit
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            val (success, message) = repository.registerVendorDetailed(storeName, description, address, logoText, bannerColor)
+            val finalPhone = if (phone.isNotBlank()) phone else userPhone.value
+            val finalOwner = if (ownerName.isNotBlank()) ownerName else userName.value
+            val (success, message) = repository.registerVendorDetailed(storeName, description, address, logoText, bannerColor, finalPhone, finalOwner)
             if (success) {
                 vendorApplicationStatus.value = "APPROVED"
                 withContext(Dispatchers.Main) {
