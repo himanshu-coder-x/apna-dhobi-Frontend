@@ -86,12 +86,12 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     var referralAppliedMessage = MutableStateFlow("")
 
     // Map/Location Selection
-    var currentCity = MutableStateFlow("New Delhi")
-    var currentFullAddress = MutableStateFlow("Shanti Kutir, Block 4-B, Connaught Place, New Delhi")
+    var currentCity = MutableStateFlow("")
+    var currentFullAddress = MutableStateFlow("📍 Detecting live GPS location...")
     var searchQuery = MutableStateFlow("")
     val searchAddresses = listOf(
-        "Shanti Kutir, Block 4-B, Connaught Place, New Delhi",
-        "Pocket B-3, Sector 8, Dwarka, New Delhi",
+        "Rohtak City Center, Model Town, Haryana",
+        "Sector 14, Rohtak, Haryana",
         "DLF Phase 3, Gurugram, Haryana",
         "Aggarwal Apartments, Sector 14, Rohini",
         "Mayur Vihar Phase I, Near Metro Station",
@@ -361,8 +361,8 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     val emailTestingLogs = MutableStateFlow("No mail diagnostics performed yet.")
 
     // Google Maps, Coordinates, & Customer GPS States
-    val customerLat = MutableStateFlow(28.6139) // Default Delhi CP
-    val customerLng = MutableStateFlow(77.2090)
+    val customerLat = MutableStateFlow(0.0)
+    val customerLng = MutableStateFlow(0.0)
     val activeDeliveryBoyLat = MutableStateFlow(28.6010)
     val activeDeliveryBoyLng = MutableStateFlow(77.1950)
     val isTrackingLiveNow = MutableStateFlow(false)

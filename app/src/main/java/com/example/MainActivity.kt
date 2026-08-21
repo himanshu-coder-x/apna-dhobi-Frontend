@@ -3524,18 +3524,22 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
         }
     }
 
+    var isSatelliteMode by remember { mutableStateOf(false) }
+
     Box(modifier = Modifier.fillMaxSize()) {
-        // Interactive Google Map
+        // Interactive Google Map (Normal / Satellite Hybrid Mode)
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
             cameraPositionState = cameraPositionState,
             properties = MapProperties(
                 isMyLocationEnabled = hasLocationPermission,
+                mapType = if (isSatelliteMode) MapType.HYBRID else MapType.NORMAL,
                 isBuildingEnabled = true
             ),
             uiSettings = MapUiSettings(
                 zoomControlsEnabled = false,
-                compassEnabled = true
+                compassEnabled = false,
+                myLocationButtonEnabled = false
             )
         ) {
             Marker(
@@ -3562,42 +3566,54 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                     shape = CircleShape,
                     color = Color.White,
                     shadowElevation = 6.dp,
-                    modifier = Modifier.size(44.dp)
+                    modifier = Modifier.size(46.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to Home", tint = Charcoal)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to Home", tint = Charcoal, modifier = Modifier.size(22.dp))
                     }
                 }
                 Spacer(modifier = Modifier.width(10.dp))
 
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search area, apartment, street...", fontSize = 14.sp) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = SaffronOrange) },
-                    trailingIcon = {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White,
+                    shadowElevation = 6.dp,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.Search, contentDescription = "Search", tint = SaffronOrange, modifier = Modifier.size(22.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        BasicTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(vertical = 12.dp),
+                            textStyle = androidx.compose.ui.text.TextStyle(color = Charcoal, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = {
+                                keyboardController?.hide()
+                            }),
+                            decorationBox = { innerTextField ->
+                                if (searchQuery.isEmpty()) {
+                                    Text("Search area, apartment, street...", color = Color.Gray, fontSize = 13.5.sp)
+                                }
+                                innerTextField()
+                            }
+                        )
                         if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.Gray)
+                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.Gray, modifier = Modifier.size(18.dp))
                             }
                         }
-                    },
-                    modifier = Modifier
-                        .weight(1f)
-                        .shadow(6.dp, RoundedCornerShape(16.dp)),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White,
-                        focusedBorderColor = SaffronOrange,
-                        unfocusedBorderColor = Color.Transparent
-                    ),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = {
-                        keyboardController?.hide()
-                    })
-                )
+                    }
+                }
             }
 
             // Live Autocomplete Suggestions List Dropdown
@@ -3663,11 +3679,10 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                             }
                         } else {
                             val itemsToShow = if (searchResults.isNotEmpty()) searchResults else listOf(
-                                Triple("Connaught Place, New Delhi", 28.6315, 77.2167),
-                                Triple("Hauz Khas, New Delhi", 28.5494, 77.2001),
-                                Triple("Cyber City, Gurugram", 28.4950, 77.0895),
-                                Triple("Lajpat Nagar, New Delhi", 28.5677, 77.2433),
-                                Triple("Saket District Centre, Delhi", 28.5286, 77.2194)
+                                Triple("Rohtak City Center, Model Town, Haryana", 28.8955, 76.6066),
+                                Triple("Sector 14, Rohtak, Haryana", 28.8845, 76.6189),
+                                Triple("Cyber City, Gurugram, Haryana", 28.4950, 77.0895),
+                                Triple("Connaught Place, New Delhi", 28.6315, 77.2167)
                             ).filter { it.first.contains(searchQuery, ignoreCase = true) || searchQuery.length > 1 }
 
                             itemsToShow.forEach { (name, lat, lng) ->
@@ -3682,7 +3697,7 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                                             vm.customerLng.value = lng
                                             markerState.position = LatLng(lat, lng)
                                             coroutineScope.launch {
-                                                cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17f))
+                                                cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17.5f))
                                             }
                                         }
                                         .padding(12.dp),
@@ -3697,6 +3712,30 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                         }
                     }
                 }
+            }
+        }
+
+        // Floating Satellite View Toggle Button (Top Right)
+        Surface(
+            onClick = { isSatelliteMode = !isSatelliteMode },
+            shape = RoundedCornerShape(20.dp),
+            color = if (isSatelliteMode) Color(0xFF0F3E88) else Color.White,
+            shadowElevation = 6.dp,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(top = 70.dp, end = 16.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isSatelliteMode) "🛰️ Satellite ON" else "🗺️ Satellite View",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isSatelliteMode) Color.White else Charcoal
+                )
             }
         }
 
