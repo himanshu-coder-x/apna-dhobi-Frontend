@@ -257,6 +257,7 @@ fun MainViewport(vm: ApnaDhobiViewModel) {
                                 }
                             }
                         }
+                        LoginSuccessWelcomeDialog(vm = vm)
                     }
                     is ApnaDhobiScreen.ProductListing -> ProductListingScreen(vm = vm, categoryId = screen.categoryId, categoryName = screen.categoryName)
                     is ApnaDhobiScreen.VendorShop -> VendorShopScreen(vm = vm, vendorId = screen.vendorId)
@@ -294,6 +295,185 @@ fun resolveImageUrl(rawUrl: String?): String? {
         url = "https://apna-dhobi-backend.onrender.com/$url"
     }
     return url
+}
+
+// ==========================================
+// PROFESSIONAL LOGIN SUCCESS WELCOME POPUP MODAL (ZOMATO / BLINKIT STANDARD)
+// ==========================================
+@Composable
+fun LoginSuccessWelcomeDialog(vm: ApnaDhobiViewModel) {
+    val showDialog by vm.showLoginSuccessDialog.collectAsState()
+    val userName by vm.userName.collectAsState()
+    val userPhone by vm.userPhone.collectAsState()
+
+    if (showDialog) {
+        Dialog(onDismissRequest = { vm.showLoginSuccessDialog.value = false }) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = Color.White,
+                shadowElevation = 16.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(22.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Close 'X' Button at top-right
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        IconButton(
+                            onClick = { vm.showLoginSuccessDialog.value = false },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = Color(0xFF94A3B8),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    // Celebration Glowing Icon
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .background(
+                                Brush.radialGradient(
+                                    colors = listOf(Color(0xFFDCFCE7), Color(0xFFF0FDF4))
+                                ),
+                                shape = CircleShape
+                            )
+                            .border(3.dp, Color(0xFF22C55E), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = "Success",
+                            tint = Color(0xFF16A34A),
+                            modifier = Modifier.size(42.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Title
+                    Text(
+                        text = "🎉 Login Successful!",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFF0F172A),
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Welcome Text with User details
+                    val displayName = if (userName.isNotBlank() && !userName.startsWith("usr_")) userName else if (userPhone.isNotBlank()) "+91 $userPhone" else "Valued Member"
+                    Text(
+                        text = "Welcome to Apna Dhobi, $displayName! Your account is verified and ready for doorstep laundry.",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF64748B),
+                        textAlign = TextAlign.Center,
+                        lineHeight = 18.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // 3 Feature Perks Cards
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFFF8FAFC),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .background(Color(0xFFFFF7ED), RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("🚚", fontSize = 16.sp)
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text("Free Doorstep Pickup & Return", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = Color(0xFF0F172A))
+                                    Text("Zero contact sanitized transit", fontSize = 11.sp, color = Color(0xFF64748B))
+                                }
+                            }
+
+                            HorizontalDivider(color = Color(0xFFE2E8F0).copy(alpha = 0.6f))
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .background(Color(0xFFEFF6FF), RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("⚡", fontSize = 16.sp)
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text("24-Hour Express Superfast Wash", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = Color(0xFF0F172A))
+                                    Text("Next-day doorstep delivery guarantee", fontSize = 11.sp, color = Color(0xFF64748B))
+                                }
+                            }
+
+                            HorizontalDivider(color = Color(0xFFE2E8F0).copy(alpha = 0.6f))
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .background(Color(0xFFFEF3C7), RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("🎁", fontSize = 16.sp)
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text("50% OFF Applied on First Order", fontWeight = FontWeight.Bold, fontSize = 12.5.sp, color = Color(0xFF0F172A))
+                                    Text("Use promo code WASH50 at checkout", fontSize = 11.sp, color = Color(0xFF64748B))
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // Primary Action Button: Start Exploring 🚀
+                    Button(
+                        onClick = { vm.showLoginSuccessDialog.value = false },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
+                    ) {
+                        Text(
+                            text = "Start Exploring 🚀",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 // ==========================================

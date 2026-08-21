@@ -81,6 +81,7 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     var showOtpPopup = MutableStateFlow(false)
     var otpCountdown = MutableStateFlow(0) // Countdown in seconds
     var isLoggedIn = MutableStateFlow(false)
+    var showLoginSuccessDialog = MutableStateFlow(false)
     var isHindi = MutableStateFlow(false)
     var userReferralCode = MutableStateFlow("")
     var referralAppliedMessage = MutableStateFlow("")
@@ -1919,6 +1920,7 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
                 userEmail.value = auth.user?.email ?: ""
                 userPhone.value = auth.user?.phone ?: ""
                 isLoggedIn.value = true
+                showLoginSuccessDialog.value = true
                 isRegistrationRequired.value = false
                 
                 if (postAuthDestination != null) {
@@ -1999,6 +2001,7 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
             userEmail.value = auth.user?.email ?: "${cleanPhone}@apnadhobi.com"
             userPhone.value = auth.user?.phone ?: cleanPhone
             isLoggedIn.value = true
+            showLoginSuccessDialog.value = true
             isCurrentUserAdmin.value = auth.user?.roles?.contains("ADMIN") == true
             isCurrentUserVendor.value = auth.user?.roles?.contains("VENDOR") == true
             isCurrentUserDelivery.value = auth.user?.roles?.contains("DELIVERY_AGENT") == true
@@ -2025,6 +2028,7 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
             userEmail.value = "${cleanPhone}@apnadhobi.com"
             userPhone.value = cleanPhone
             isLoggedIn.value = true
+            showLoginSuccessDialog.value = true
             _currentScreen.value = ApnaDhobiScreen.HomeFrame
             pushSimulatedNotification("Login verified! Welcome to Apna Dhobi.")
             return true
@@ -2054,6 +2058,7 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
             userEmail.value = auth.user?.email ?: email
             userPhone.value = auth.user?.phone ?: ""
             isLoggedIn.value = true
+            showLoginSuccessDialog.value = true
             isCurrentUserAdmin.value = auth.user?.roles?.contains("ADMIN") == true
             isCurrentUserVendor.value = auth.user?.roles?.contains("VENDOR") == true
             isCurrentUserDelivery.value = auth.user?.roles?.contains("DELIVERY_AGENT") == true
