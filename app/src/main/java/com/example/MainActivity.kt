@@ -3409,37 +3409,54 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
     val customerLat by vm.customerLat.collectAsState()
     val customerLng by vm.customerLng.collectAsState()
     val currentAddress by vm.currentFullAddress.collectAsState()
+    val savedAddressesList by vm.savedAddresses.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
-    var addressDetailText by remember { mutableStateOf(currentAddress) }
+    var addressDetailText by remember { mutableStateOf(if (currentAddress.startsWith("📍")) "" else currentAddress) }
     var selectedLabel by remember { mutableStateOf("Home") }
-    var houseFlatNo by remember { mutableStateOf("") }
+    var houseFlatNo by remember { mutableStateOf("Flat 101, 1st Floor") }
     var isDetecting by remember { mutableStateOf(false) }
     var searchResults by remember { mutableStateOf<List<Triple<String, Double, Double>>>(emptyList()) }
     var isSearchingLocations by remember { mutableStateOf(false) }
+    var isSatelliteMode by remember { mutableStateOf(true) }
+    var isManualEditing by remember { mutableStateOf(false) }
+    var manualAddressInput by remember { mutableStateOf("") }
+
+    fun handleBackToHome() {
+        val finalFormatted = if (houseFlatNo.isNotBlank() && addressDetailText.isNotBlank()) {
+            "$houseFlatNo, $addressDetailText"
+        } else {
+            addressDetailText.ifBlank { "Rohtak, Haryana" }
+        }
+        if (addressDetailText.isNotBlank() && !addressDetailText.startsWith("📡")) {
+            vm.currentFullAddress.value = finalFormatted
+        }
+        vm.navigateTo(ApnaDhobiScreen.HomeFrame)
+    }
 
     fun handleSaveAndProceed() {
-        val finalFormatted = if (houseFlatNo.isNotBlank()) "$houseFlatNo, $addressDetailText" else addressDetailText
-        vm.saveNewAddress(finalFormatted, selectedLabel)
-        vm.currentFullAddress.value = finalFormatted
-        if (vm.isLoggedIn.value) {
-            vm.navigateTo(ApnaDhobiScreen.HomeFrame)
+        val finalFormatted = if (houseFlatNo.isNotBlank() && addressDetailText.isNotBlank()) {
+            "$houseFlatNo, $addressDetailText"
         } else {
-            vm.navigateTo(ApnaDhobiScreen.Login)
+            addressDetailText.ifBlank { "Rohtak, Haryana" }
         }
+        vm.saveNewAddress(selectedLabel, finalFormatted)
+        vm.currentFullAddress.value = finalFormatted
+        Toast.makeText(context, "Location Saved Successfully!", Toast.LENGTH_SHORT).show()
+        vm.navigateTo(ApnaDhobiScreen.HomeFrame)
     }
 
     BackHandler {
-        handleSaveAndProceed()
+        handleBackToHome()
     }
 
     var hasInitialGpsLockDone by remember { mutableStateOf(false) }
 
-    val currentPosition = LatLng(customerLat, customerLng)
+    val initialPos = if (customerLat != 0.0 && customerLng != 0.0) LatLng(customerLat, customerLng) else LatLng(28.8955, 76.6066)
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(currentPosition, 17f)
+        position = CameraPosition.fromLatLngZoom(initialPos, 17.5f)
     }
-    val markerState = rememberMarkerState(position = currentPosition)
+    val markerState = rememberMarkerState(position = initialPos)
 
     // Android Location Permission Request Launcher
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -3456,24 +3473,24 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                 addressDetailText = addr
                 markerState.position = LatLng(lat, lng)
                 coroutineScope.launch {
-                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17.5f))
+                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 18f))
                 }
             }
         } else {
-            Toast.makeText(context, "Location permission required to get live GPS position.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Location permission required to detect GPS.", Toast.LENGTH_SHORT).show()
         }
     }
 
     val hasLocationPermission = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
             androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
-    // Trigger real hardware GPS fetch immediately on launch
+    // Immediate Hardware GPS detection on screen opening
     LaunchedEffect(Unit) {
         val locManager = context.getSystemService(Context.LOCATION_SERVICE) as? android.location.LocationManager
         val isGpsEnabled = locManager?.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) == true ||
                 locManager?.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER) == true
         if (!isGpsEnabled) {
-            Toast.makeText(context, "Please turn on Device GPS / Location for accurate pickup detection", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Please turn on Location / GPS for live pickup accuracy", Toast.LENGTH_LONG).show()
         }
 
         if (hasLocationPermission) {
@@ -3485,7 +3502,7 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                 addressDetailText = addr
                 markerState.position = LatLng(lat, lng)
                 coroutineScope.launch {
-                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17.5f))
+                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 18f))
                 }
             }
         } else {
@@ -3502,7 +3519,7 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
     LaunchedEffect(searchQuery) {
         if (searchQuery.trim().length >= 2) {
             isSearchingLocations = true
-            delay(350)
+            delay(300)
             val results = searchLocationsFromQuery(context, searchQuery.trim())
             searchResults = results
             isSearchingLocations = false
@@ -3512,7 +3529,7 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
         }
     }
 
-    // Update marker and address ONLY when user manually drags/moves map AFTER initial GPS lock
+    // Update marker and reverse geocode when user manually drags/moves map
     LaunchedEffect(cameraPositionState.isMoving) {
         if (!cameraPositionState.isMoving && hasInitialGpsLockDone && !isDetecting) {
             val target = cameraPositionState.position.target
@@ -3520,14 +3537,14 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
             vm.customerLat.value = target.latitude
             vm.customerLng.value = target.longitude
             val resolvedAddr = fetchAddressFromCoordinates(context, target.latitude, target.longitude)
-            addressDetailText = resolvedAddr
+            if (resolvedAddr.isNotBlank()) {
+                addressDetailText = resolvedAddr
+            }
         }
     }
 
-    var isSatelliteMode by remember { mutableStateOf(false) }
-
     Box(modifier = Modifier.fillMaxSize()) {
-        // Interactive Google Map (Normal / Satellite Hybrid Mode)
+        // Interactive Google Map (Satellite Hybrid / Normal Vector Mode)
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
             cameraPositionState = cameraPositionState,
@@ -3542,6 +3559,16 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                 myLocationButtonEnabled = false
             )
         ) {
+            // Live GPS Blue Accuracy Ring
+            Circle(
+                center = markerState.position,
+                radius = 28.0,
+                fillColor = Color(0x332563EB),
+                strokeColor = Color(0x992563EB),
+                strokeWidth = 2.5f
+            )
+
+            // Red Location Teardrop Marker
             Marker(
                 state = markerState,
                 title = "Pickup Location",
@@ -3549,7 +3576,7 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
             )
         }
 
-        // Top Interactive Search Bar & Back Button (With statusBarsPadding)
+        // Top Floating Header: Back Button + Search Bar
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -3562,20 +3589,25 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    onClick = { handleSaveAndProceed() },
+                    onClick = { handleBackToHome() },
                     shape = CircleShape,
                     color = Color.White,
                     shadowElevation = 6.dp,
                     modifier = Modifier.size(46.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to Home", tint = Charcoal, modifier = Modifier.size(22.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back to Home",
+                            tint = Color(0xFF0F172A),
+                            modifier = Modifier.size(22.dp)
+                        )
                     }
                 }
                 Spacer(modifier = Modifier.width(10.dp))
 
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(24.dp),
                     color = Color.White,
                     shadowElevation = 6.dp,
                     modifier = Modifier.weight(1f)
@@ -3583,10 +3615,15 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 2.dp),
+                            .padding(horizontal = 14.dp, vertical = 2.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Search, contentDescription = "Search", tint = SaffronOrange, modifier = Modifier.size(22.dp))
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Search",
+                            tint = SaffronOrange,
+                            modifier = Modifier.size(22.dp)
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
                         BasicTextField(
                             value = searchQuery,
@@ -3594,7 +3631,11 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                             modifier = Modifier
                                 .weight(1f)
                                 .padding(vertical = 12.dp),
-                            textStyle = androidx.compose.ui.text.TextStyle(color = Charcoal, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                color = Color(0xFF0F172A),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            ),
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                             keyboardActions = KeyboardActions(onSearch = {
@@ -3602,7 +3643,7 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                             }),
                             decorationBox = { innerTextField ->
                                 if (searchQuery.isEmpty()) {
-                                    Text("Search area, apartment, street...", color = Color.Gray, fontSize = 13.5.sp)
+                                    Text("Search area, apartment, street...", color = Color(0xFF94A3B8), fontSize = 13.5.sp)
                                 }
                                 innerTextField()
                             }
@@ -3610,6 +3651,10 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                         if (searchQuery.isNotEmpty()) {
                             IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(28.dp)) {
                                 Icon(Icons.Default.Close, contentDescription = "Clear", tint = Color.Gray, modifier = Modifier.size(18.dp))
+                            }
+                        } else {
+                            IconButton(onClick = { /* Voice Search */ }, modifier = Modifier.size(28.dp)) {
+                                Icon(Icons.Default.Mic, contentDescription = "Voice Search", tint = Color(0xFF64748B), modifier = Modifier.size(20.dp))
                             }
                         }
                     }
@@ -3641,7 +3686,7 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                                         addressDetailText = addr
                                         markerState.position = LatLng(lat, lng)
                                         coroutineScope.launch {
-                                            cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17.5f))
+                                            cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 18f))
                                         }
                                     }
                                 }
@@ -3682,7 +3727,7 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                                 Triple("Rohtak City Center, Model Town, Haryana", 28.8955, 76.6066),
                                 Triple("Sector 14, Rohtak, Haryana", 28.8845, 76.6189),
                                 Triple("Cyber City, Gurugram, Haryana", 28.4950, 77.0895),
-                                Triple("Connaught Place, New Delhi", 28.6315, 77.2167)
+                                Triple("Indiranagar, Bengaluru, Karnataka 560038", 12.9784, 77.6408)
                             ).filter { it.first.contains(searchQuery, ignoreCase = true) || searchQuery.length > 1 }
 
                             itemsToShow.forEach { (name, lat, lng) ->
@@ -3715,11 +3760,11 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
             }
         }
 
-        // Floating Satellite View Toggle Button (Top Right)
+        // Floating Satellite View Toggle Pill Button (Top Right)
         Surface(
             onClick = { isSatelliteMode = !isSatelliteMode },
             shape = RoundedCornerShape(20.dp),
-            color = if (isSatelliteMode) Color(0xFF0F3E88) else Color.White,
+            color = if (isSatelliteMode) Color(0xFF1D4ED8) else Color.White,
             shadowElevation = 6.dp,
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -3727,19 +3772,19 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                 .padding(top = 70.dp, end = 16.dp)
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = if (isSatelliteMode) "🛰️ Satellite ON" else "🗺️ Satellite View",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (isSatelliteMode) Color.White else Charcoal
+                    color = if (isSatelliteMode) Color.White else Color(0xFF0F172A)
                 )
             }
         }
 
-        // Floating "LOCATE ME" Button (Hardware GPS Lock)
+        // Floating Circular GPS Locate Button (Crosshair)
         Surface(
             onClick = {
                 isDetecting = true
@@ -3754,7 +3799,7 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                         markerState.position = LatLng(lat, lng)
                         coroutineScope.launch {
                             cameraPositionState.animate(
-                                CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17.5f)
+                                CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 18f)
                             )
                         }
                     }
@@ -3763,96 +3808,437 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                     permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
                 }
             },
-            shape = RoundedCornerShape(24.dp),
+            shape = CircleShape,
             color = Color.White,
-            shadowElevation = 8.dp,
+            shadowElevation = 6.dp,
             modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(bottom = 285.dp, end = 16.dp)
+                .align(Alignment.TopEnd)
+                .statusBarsPadding()
+                .padding(top = 118.dp, end = 16.dp)
+                .size(44.dp)
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Box(contentAlignment = Alignment.Center) {
                 if (isDetecting) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = SaffronOrange, strokeWidth = 2.dp)
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = SaffronOrange, strokeWidth = 2.dp)
                 } else {
-                    Icon(Icons.Default.MyLocation, contentDescription = "Locate Me", tint = SaffronOrange, modifier = Modifier.size(20.dp))
+                    Icon(
+                        imageVector = Icons.Default.GpsFixed,
+                        contentDescription = "Locate Me",
+                        tint = Color(0xFF0F172A),
+                        modifier = Modifier.size(22.dp)
+                    )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Locate Me", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Charcoal)
             }
         }
 
-        // Bottom Sheet Location Details
+        // Bottom Sheet Location Details (Matching Image 2 media_1787302122651.png)
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.BottomCenter),
+                .align(Alignment.BottomCenter)
+                .fillMaxHeight(0.58f),
             shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
             elevation = CardDefaults.cardElevation(16.dp)
         ) {
             Column(
-                modifier = Modifier.padding(20.dp)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .verticalScroll(rememberScrollState())
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = SaffronOrange, modifier = Modifier.size(28.dp))
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("SELECT PICKUP LOCATION", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                        Text(
-                            text = addressDetailText.ifBlank { "Fetching address..." },
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Charcoal,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
+                // Top Handle Bar
+                Box(
+                    modifier = Modifier
+                        .width(36.dp)
+                        .height(4.dp)
+                        .background(Color(0xFFCBD5E1), RoundedCornerShape(2.dp))
+                        .align(Alignment.CenterHorizontally)
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // 1. Current Location Detected Box
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.White,
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.LocationOn,
+                            contentDescription = null,
+                            tint = Color(0xFF2563EB),
+                            modifier = Modifier.size(24.dp)
                         )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Current location detected",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp,
+                                color = Color(0xFF0F172A)
+                            )
+                            Text(
+                                text = addressDetailText.ifBlank { "Detecting live GPS location..." },
+                                fontSize = 12.sp,
+                                color = Color(0xFF64748B),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            onClick = {
+                                isDetecting = true
+                                addressDetailText = "📡 Detecting your current live location..."
+                                vm.fetchRealGpsLocation(context) { lat, lng, addr ->
+                                    isDetecting = false
+                                    hasInitialGpsLockDone = true
+                                    addressDetailText = addr
+                                    markerState.position = LatLng(lat, lng)
+                                    coroutineScope.launch {
+                                        cameraPositionState.animate(
+                                            CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 18f)
+                                        )
+                                    }
+                                }
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
+                            color = Color.White
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Re-detect",
+                                    tint = Color(0xFF0F172A),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Re-detect",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF0F172A)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // 2. Search or Enter Address Manually Box
+                Surface(
+                    onClick = { isManualEditing = !isManualEditing },
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.White,
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = Color(0xFF2563EB),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = if (manualAddressInput.isNotBlank()) manualAddressInput else "Search or enter address manually",
+                                fontSize = 13.5.sp,
+                                color = if (manualAddressInput.isNotBlank()) Color(0xFF0F172A) else Color(0xFF94A3B8),
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                                contentDescription = null,
+                                tint = Color(0xFF94A3B8),
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                        if (isManualEditing) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = manualAddressInput,
+                                onValueChange = {
+                                    manualAddressInput = it
+                                    addressDetailText = it
+                                },
+                                placeholder = { Text("Type complete area, landmark, colony...", fontSize = 12.5.sp) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                singleLine = false,
+                                maxLines = 3
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // 3. House / Flat / Floor No. (Optional) Box
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color.White,
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Apartment,
+                            contentDescription = null,
+                            tint = Color(0xFF2563EB),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "House / Flat / Floor No. (Optional)",
+                                fontSize = 11.5.sp,
+                                color = Color(0xFF94A3B8),
+                                fontWeight = FontWeight.Medium
+                            )
+                            BasicTextField(
+                                value = houseFlatNo,
+                                onValueChange = { houseFlatNo = it },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 2.dp),
+                                textStyle = androidx.compose.ui.text.TextStyle(
+                                    color = SaffronOrange,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.5.sp
+                                ),
+                                singleLine = true,
+                                decorationBox = { innerTextField ->
+                                    if (houseFlatNo.isEmpty()) {
+                                        Text("e.g. Flat 101, 1st Floor", color = Color(0xFFCBD5E1), fontSize = 13.sp)
+                                    }
+                                    innerTextField()
+                                }
+                            )
+                        }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
-                OutlinedTextField(
-                    value = houseFlatNo,
-                    onValueChange = { houseFlatNo = it },
-                    label = { Text("House / Flat / Floor No. (Optional)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    singleLine = true
+
+                // 4. SAVE AS Tag Chips
+                Text(
+                    text = "SAVE AS",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF94A3B8),
+                    letterSpacing = 0.5.sp
                 )
+                Spacer(modifier = Modifier.height(8.dp))
 
-                Spacer(modifier = Modifier.height(12.dp))
-                Text("SAVE AS:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("Home", "Office", "Other").forEach { tag ->
-                        FilterChip(
-                            selected = selectedLabel == tag,
-                            onClick = { selectedLabel = tag },
-                            label = { Text(tag, fontWeight = FontWeight.SemiBold) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = SaffronOrange,
-                                selectedLabelColor = Color.White
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    // Home Chip
+                    val isHome = selectedLabel == "Home"
+                    Surface(
+                        onClick = { selectedLabel = "Home" },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isHome) SaffronOrange else Color.White,
+                        border = BorderStroke(1.dp, if (isHome) SaffronOrange else Color(0xFFCBD5E1))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Home,
+                                contentDescription = null,
+                                tint = if (isHome) Color.White else Color(0xFF0F172A),
+                                modifier = Modifier.size(16.dp)
                             )
-                        )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Home",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = if (isHome) Color.White else Color(0xFF0F172A)
+                            )
+                        }
+                    }
+
+                    // Office Chip
+                    val isOffice = selectedLabel == "Office"
+                    Surface(
+                        onClick = { selectedLabel = "Office" },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isOffice) SaffronOrange else Color.White,
+                        border = BorderStroke(1.dp, if (isOffice) SaffronOrange else Color(0xFFCBD5E1))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Work,
+                                contentDescription = null,
+                                tint = if (isOffice) Color.White else Color(0xFF0F172A),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Office",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = if (isOffice) Color.White else Color(0xFF0F172A)
+                            )
+                        }
+                    }
+
+                    // Other Chip
+                    val isOther = selectedLabel == "Other"
+                    Surface(
+                        onClick = { selectedLabel = "Other" },
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isOther) SaffronOrange else Color.White,
+                        border = BorderStroke(1.dp, if (isOther) SaffronOrange else Color(0xFFCBD5E1))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = if (isOther) Color.White else Color(0xFF0F172A),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Other",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                color = if (isOther) Color.White else Color(0xFF0F172A)
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // 5. SAVED ADDRESSES List
+                Text(
+                    text = "SAVED ADDRESSES",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF94A3B8),
+                    letterSpacing = 0.5.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                val addressesList = if (savedAddressesList.isNotEmpty()) savedAddressesList else listOf(
+                    SavedAddress(id = 1, label = "Home", addressLine = "Flat 101, 1st Floor, 12th Main Rd, Indiranagar, Bengaluru, Karnataka 560038"),
+                    SavedAddress(id = 2, label = "Office", addressLine = "Unit 45, 3rd Floor, Prestige Tech Park, Marathahalli, Bengaluru, Karnataka 560037")
+                )
+
+                addressesList.forEach { addr ->
+                    Surface(
+                        onClick = {
+                            addressDetailText = addr.addressLine
+                            selectedLabel = addr.label
+                            Toast.makeText(context, "Selected ${addr.label} address", Toast.LENGTH_SHORT).show()
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color.White,
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val isHomeItem = addr.label.equals("Home", ignoreCase = true)
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(
+                                        if (isHomeItem) Color(0xFFFFF7ED) else Color(0xFFEFF6FF),
+                                        RoundedCornerShape(8.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (isHomeItem) Icons.Default.Home else Icons.Default.Apartment,
+                                    contentDescription = null,
+                                    tint = if (isHomeItem) SaffronOrange else Color(0xFF2563EB),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = addr.label,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.5.sp,
+                                    color = Color(0xFF0F172A)
+                                )
+                                Text(
+                                    text = addr.addressLine,
+                                    fontSize = 11.5.sp,
+                                    color = Color(0xFF64748B),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            IconButton(onClick = { /* More options */ }, modifier = Modifier.size(24.dp)) {
+                                Icon(
+                                    imageVector = Icons.Default.MoreVert,
+                                    contentDescription = "Options",
+                                    tint = Color(0xFF94A3B8),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 6. CONFIRM & PROCEED Button
                 Button(
-                    onClick = {
-                        handleSaveAndProceed()
-                        Toast.makeText(context, "Location Saved!", Toast.LENGTH_SHORT).show()
-                    },
+                    onClick = { handleSaveAndProceed() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
                 ) {
-                    Text("CONFIRM & PROCEED", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(
+                        text = "CONFIRM & PROCEED",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.5.sp,
+                        letterSpacing = 0.5.sp
+                    )
                 }
             }
         }
