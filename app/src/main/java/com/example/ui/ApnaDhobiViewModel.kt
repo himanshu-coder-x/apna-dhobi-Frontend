@@ -698,6 +698,94 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     val workerJobs = MutableStateFlow<List<OrderRecord>>(emptyList())
     val isWorkerJobsLoading = MutableStateFlow(false)
 
+    val deliveryPartnerProfile = MutableStateFlow<Map<String, Any>>(
+        mapOf(
+            "name" to "Rahul Sharma",
+            "phone" to "+91 98765 43210",
+            "partnerId" to "LDP-78456",
+            "vehicleType" to "Electric Scooter",
+            "vehicleNumber" to "HR 12 AB 1234",
+            "rating" to 4.9,
+            "totalTrips" to 142,
+            "kycStatus" to "Verified ✓",
+            "workingHours" to "08:00 AM - 08:00 PM",
+            "city" to "Model Town, Rohtak"
+        )
+    )
+    val deliveryPartnerStats = MutableStateFlow<Map<String, Any>>(emptyMap())
+
+    fun checkDeliveryPartnerAccount(phone: String, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val (exists, message) = repository.verifyDeliveryPartnerPhone(phone)
+            withContext(Dispatchers.Main) {
+                onResult(exists, message)
+            }
+        }
+    }
+
+    fun checkVendorAccount(phone: String, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) {
+                onResult(true, "Vendor found")
+            }
+        }
+    }
+
+    fun loginVendorWithOtp(phone: String, otp: String, onComplete: (Boolean, String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val authResponse = repository.verifyOtp(phone, otp)
+            if (authResponse != null && (!authResponse.accessToken.isNullOrBlank() || authResponse.isVerified == true)) {
+                vendorApplicationStatus.value = "APPROVED"
+                withContext(Dispatchers.Main) {
+                    onComplete(true, "Logged in as Vendor! 🏪")
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    onComplete(false, "Invalid OTP code.")
+                }
+            }
+        }
+    }
+
+    fun loginDeliveryPartnerWithOtp(phone: String, otp: String, onComplete: (Boolean, String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val authResponse = repository.verifyOtp(phone, otp)
+            if (authResponse != null && (!authResponse.accessToken.isNullOrBlank() || authResponse.isVerified == true)) {
+                deliveryApplicationStatus.value = "APPROVED"
+                loadDeliveryPartnerData()
+                withContext(Dispatchers.Main) {
+                    onComplete(true, "Logged in as Delivery Partner! 🛵")
+                }
+            } else {
+                withContext(Dispatchers.Main) {
+                    onComplete(false, "Invalid OTP. Please check code.")
+                }
+            }
+        }
+    }
+
+    fun loadDeliveryPartnerData() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val profile = repository.fetchWorkerProfile()
+            if (profile != null) {
+                deliveryPartnerProfile.value = profile
+            }
+            val stats = repository.fetchWorkerStats()
+            if (stats != null) {
+                deliveryPartnerStats.value = stats
+            }
+            refreshWorkerJobs()
+            refreshOrders()
+        }
+    }
+
+    fun setDeliveryPartnerOnlineStatus(isOnline: Boolean) {
+        isDeliveryPartnerOnline.value = isOnline
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.updateWorkerAvailability(isOnline)
+        }
+    }
+
     fun refreshWorkerJobs() {
         viewModelScope.launch(Dispatchers.IO) {
             isWorkerJobsLoading.value = true

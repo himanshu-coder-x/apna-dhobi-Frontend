@@ -677,7 +677,50 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
         }
     }
 
-    // Staff Actions
+    // Staff & Delivery Partner Actions
+    suspend fun verifyDeliveryPartnerPhone(phone: String): Pair<Boolean, String> {
+        return try {
+            val response = staffApi.verifyWorkerPhone(mapOf("phone" to phone))
+            if (response.isSuccessful) {
+                val body = response.body()
+                val exists = (body?.get("exists") as? Boolean) ?: false
+                val msg = (body?.get("message") as? String) ?: if (exists) "Delivery partner verified" else "No Delivery Partner account found."
+                Pair(exists, msg)
+            } else {
+                Pair(false, "No Delivery Partner account found. Please Create Account / Sign Up.")
+            }
+        } catch (e: Exception) {
+            Pair(false, "No Delivery Partner account found. Please Create Account / Sign Up.")
+        }
+    }
+
+    suspend fun fetchWorkerProfile(): Map<String, Any>? {
+        return try {
+            val response = staffApi.getWorkerProfile()
+            if (response.isSuccessful) response.body() else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    suspend fun fetchWorkerStats(): Map<String, Any>? {
+        return try {
+            val response = staffApi.getWorkerStats()
+            if (response.isSuccessful) response.body() else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    suspend fun updateWorkerAvailability(isActive: Boolean): Boolean {
+        return try {
+            val response = staffApi.updateWorkerAvailability(mapOf("isActive" to isActive))
+            response.isSuccessful
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     suspend fun registerWorker(phone: String, name: String): Boolean {
         return try {
             staffApi.registerWorker(mapOf("phone" to phone, "name" to name)).isSuccessful
@@ -695,7 +738,7 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
             if (city.isNotBlank()) body["city"] = city
             if (vehicleType.isNotBlank()) body["vehicleType"] = vehicleType
             if (licenseNumber.isNotBlank()) body["licenseNumber"] = licenseNumber
-            val response = staffApi.registerWorker(body)
+            val response = staffApi.registerDeliveryPartner(body as Map<String, Any>)
             if (response.isSuccessful) {
                 Pair(true, "Delivery Partner registered and approved successfully! 🛵")
             } else {

@@ -255,6 +255,10 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
     var partnerSignInRole by remember { mutableStateOf("vendor") } // "vendor" or "delivery"
     var partnerSignInPhone by remember { mutableStateOf(mobile) }
     var partnerSignInOtp by remember { mutableStateOf("") }
+    var partnerSignInOtpSent by remember { mutableStateOf(false) }
+    var isCheckingPartnerPhone by remember { mutableStateOf(false) }
+    var partnerNotFoundMessage by remember { mutableStateOf<String?>(null) }
+    var isVerifyingPartnerOtp by remember { mutableStateOf(false) }
 
     // Onboarding Feedback Dialog States
     var showOnboardingFeedbackDialog by remember { mutableStateOf(false) }
@@ -2832,7 +2836,13 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
     // ==========================================
     if (showPartnerSignInDialog) {
         AlertDialog(
-            onDismissRequest = { showPartnerSignInDialog = false },
+            onDismissRequest = { 
+                if (!isCheckingPartnerPhone && !isVerifyingPartnerOtp) {
+                    showPartnerSignInDialog = false
+                    partnerSignInOtpSent = false
+                    partnerNotFoundMessage = null
+                }
+            },
             title = {
                 Text(
                     text = if (partnerSignInRole == "vendor") "Vendor Sign In 🏪" else "Delivery Partner Sign In 🛵",
@@ -2842,50 +2852,195 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Enter your registered mobile number and verification OTP to access your dashboard.", fontSize = 12.sp, color = Color(0xFF64748B))
+                    Text(
+                        text = if (!partnerSignInOtpSent) 
+                            "Enter your registered mobile number. We will verify your partner account and send an authentication OTP."
+                        else 
+                            "Enter the 4-digit OTP sent to +91 $partnerSignInPhone to unlock your workspace.",
+                        fontSize = 12.sp,
+                        color = Color(0xFF64748B)
+                    )
+
                     OutlinedTextField(
                         value = partnerSignInPhone,
-                        onValueChange = { partnerSignInPhone = it },
+                        onValueChange = { 
+                            partnerSignInPhone = it
+                            partnerNotFoundMessage = null
+                        },
                         label = { Text("Registered Mobile (+91)") },
                         singleLine = true,
+                        enabled = !partnerSignInOtpSent && !isCheckingPartnerPhone,
                         colors = getLightBgTextFieldColors(),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    OutlinedTextField(
-                        value = partnerSignInOtp,
-                        onValueChange = { partnerSignInOtp = it },
-                        label = { Text("Enter OTP (e.g. 123456)") },
-                        singleLine = true,
-                        colors = getLightBgTextFieldColors(),
-                        modifier = Modifier.fillMaxWidth()
-                    )
+
+                    if (partnerNotFoundMessage != null) {
+                        Surface(
+                            color = Color(0xFFFEE2E2),
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Text(
+                                    text = "❌ $partnerNotFoundMessage",
+                                    color = Color(0xFFDC2626),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Button(
+                                    onClick = {
+                                        showPartnerSignInDialog = false
+                                        partnerSignInOtpSent = false
+                                        partnerNotFoundMessage = null
+                                        showDeliveryGatewayDialog = false
+                                        activeSubView = "delivery_onboarding"
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentPadding = PaddingValues(vertical = 6.dp)
+                                ) {
+                                    Text("📝 Create Account / Sign Up 🚀", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                            }
+                        }
+                    }
+
+                    if (partnerSignInOtpSent) {
+                        OutlinedTextField(
+                            value = partnerSignInOtp,
+                            onValueChange = { if (it.length <= 6) partnerSignInOtp = it },
+                            label = { Text("Enter OTP (e.g. 4-digit OTP)") },
+                            singleLine = true,
+                            enabled = !isVerifyingPartnerOtp,
+                            colors = getLightBgTextFieldColors(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Didn't get OTP?", fontSize = 11.sp, color = Color(0xFF64748B))
+                            TextButton(
+                                onClick = {
+                                    vm.sendOtp(partnerSignInPhone)
+                                    Toast.makeText(context, "OTP resent to +91 $partnerSignInPhone", Toast.LENGTH_SHORT).show()
+                                }
+                            ) {
+                                Text("Resend OTP", fontSize = 11.sp, color = RoyalBlue, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        if (partnerSignInPhone.isNotBlank()) {
-                            showPartnerSignInDialog = false
-                            if (partnerSignInRole == "vendor") {
-                                vm.vendorApplicationStatus.value = "APPROVED"
-                                vm.navigateTo(ApnaDhobiScreen.VendorDashboard)
+                if (!partnerSignInOtpSent) {
+                    Button(
+                        onClick = {
+                            val cleanPhone = partnerSignInPhone.replace(Regex("\\D"), "").takeLast(10)
+                            if (cleanPhone.length == 10) {
+                                isCheckingPartnerPhone = true
+                                partnerNotFoundMessage = null
+                                if (partnerSignInRole == "vendor") {
+                                    vm.checkVendorAccount(cleanPhone) { exists, msg ->
+                                        isCheckingPartnerPhone = false
+                                        if (exists) {
+                                            partnerSignInOtpSent = true
+                                            vm.sendOtp(cleanPhone)
+                                            Toast.makeText(context, "OTP sent to registered mobile!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            partnerNotFoundMessage = "No Vendor account found. Please register as vendor."
+                                        }
+                                    }
+                                } else {
+                                    vm.checkDeliveryPartnerAccount(cleanPhone) { exists, msg ->
+                                        isCheckingPartnerPhone = false
+                                        if (exists) {
+                                            partnerSignInOtpSent = true
+                                            vm.sendOtp(cleanPhone)
+                                            Toast.makeText(context, "OTP sent to registered mobile!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            partnerNotFoundMessage = "No Delivery Partner account found."
+                                        }
+                                    }
+                                }
                             } else {
-                                vm.deliveryApplicationStatus.value = "APPROVED"
-                                vm.navigateTo(ApnaDhobiScreen.DeliveryBoyDashboard)
+                                Toast.makeText(context, "Please enter valid 10-digit mobile number!", Toast.LENGTH_SHORT).show()
                             }
+                        },
+                        enabled = !isCheckingPartnerPhone,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (partnerSignInRole == "vendor") Color(0xFFFF6B00) else Color(0xFF0F47A6)
+                        )
+                    ) {
+                        if (isCheckingPartnerPhone) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                         } else {
-                            Toast.makeText(context, "Please enter mobile number!", Toast.LENGTH_SHORT).show()
+                            Text("Send OTP 📲", fontWeight = FontWeight.Bold)
                         }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (partnerSignInRole == "vendor") Color(0xFFFF6B00) else Color(0xFF0F47A6)
-                    )
-                ) {
-                    Text("Verify & Open Workspace 🚀", fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            val cleanPhone = partnerSignInPhone.replace(Regex("\\D"), "").takeLast(10)
+                            if (partnerSignInOtp.isNotBlank()) {
+                                isVerifyingPartnerOtp = true
+                                if (partnerSignInRole == "vendor") {
+                                    vm.loginVendorWithOtp(cleanPhone, partnerSignInOtp) { success: Boolean, msg: String ->
+                                        isVerifyingPartnerOtp = false
+                                        if (success) {
+                                            showPartnerSignInDialog = false
+                                            partnerSignInOtpSent = false
+                                            vm.vendorApplicationStatus.value = "APPROVED"
+                                            vm.navigateTo(ApnaDhobiScreen.VendorDashboard)
+                                        } else {
+                                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                } else {
+                                    vm.loginDeliveryPartnerWithOtp(cleanPhone, partnerSignInOtp) { success: Boolean, msg: String ->
+                                        isVerifyingPartnerOtp = false
+                                        if (success) {
+                                            showPartnerSignInDialog = false
+                                            partnerSignInOtpSent = false
+                                            vm.deliveryApplicationStatus.value = "APPROVED"
+                                            vm.navigateTo(ApnaDhobiScreen.DeliveryBoyDashboard)
+                                        } else {
+                                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
+                            } else {
+                                Toast.makeText(context, "Please enter OTP!", Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        enabled = !isVerifyingPartnerOtp,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (partnerSignInRole == "vendor") Color(0xFFFF6B00) else Color(0xFF0F47A6)
+                        )
+                    ) {
+                        if (isVerifyingPartnerOtp) {
+                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text("Verify & Open Workspace 🚀", fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showPartnerSignInDialog = false }) { Text("Cancel", color = Color.Gray) }
+                TextButton(
+                    onClick = {
+                        showPartnerSignInDialog = false
+                        partnerSignInOtpSent = false
+                        partnerNotFoundMessage = null
+                    },
+                    enabled = !isCheckingPartnerPhone && !isVerifyingPartnerOtp
+                ) {
+                    Text("Cancel", color = Color.Gray)
+                }
             }
         )
     }
@@ -6536,11 +6691,16 @@ fun AdminPremiumDashboard(vm: ApnaDhobiViewModel) {
 fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        vm.loadDeliveryPartnerData()
+    }
+
+    val profile by vm.deliveryPartnerProfile.collectAsState()
+    val stats by vm.deliveryPartnerStats.collectAsState()
     val orders by vm.ordersList.collectAsState()
-    val fleetDrivers by vm.deliveryPartnersState.collectAsState()
+    val workerJobs by vm.workerJobs.collectAsState()
     val isOnline by vm.isDeliveryPartnerOnline.collectAsState()
-    val customerLat by vm.customerLat.collectAsState()
-    val customerLng by vm.customerLng.collectAsState()
 
     var activeNavTab by remember { mutableIntStateOf(0) } // 0: Dashboard, 1: Orders, 2: Earnings, 3: Profile
 
@@ -6557,16 +6717,80 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
     var otpInput by remember { mutableStateOf("") }
     var isVerifyingOtp by remember { mutableStateOf(false) }
     var showServiceZoneDialog by remember { mutableStateOf(false) }
-    var serviceZoneText by remember { mutableStateOf("Model Town, Rohtak") }
-    var showOnboardDriverDialog by remember { mutableStateOf(false) }
-    var newDriverName by remember { mutableStateOf("") }
-    var newDriverPhone by remember { mutableStateOf("") }
-    var newDriverVehicle by remember { mutableStateOf("Electric Scooter 🛵") }
-    var newDriverLicense by remember { mutableStateOf("") }
+    var serviceZoneText by remember { mutableStateOf((profile["city"] as? String)?.takeIf { it.isNotBlank() } ?: "Model Town, Rohtak") }
 
-    val pendingRuns = orders.filter { it.status != "Delivered" && it.status != "DELIVERED" }
-    val activeRun = orders.find { it.status == "OUT_FOR_DELIVERY" || it.status == "Out for Delivery" || it.status == "PICKUP_ASSIGNED" || it.status == "PICKED_UP" }
-    val completedRuns = orders.filter { it.status == "Delivered" || it.status == "DELIVERED" }
+    // Profile Detail Dialogs
+    var showPersonalInfoDialog by remember { mutableStateOf(false) }
+    var showBankDetailsDialog by remember { mutableStateOf(false) }
+    var showWorkingHoursDialog by remember { mutableStateOf(false) }
+    var showKycDialog by remember { mutableStateOf(false) }
+
+    val driverName = (profile["name"] as? String)?.takeIf { it.isNotBlank() } ?: "Rahul Sharma"
+    val driverPhone = (profile["phone"] as? String)?.takeIf { it.isNotBlank() } ?: "+91 98765 43210"
+    val partnerId = (profile["partnerId"] as? String)?.takeIf { it.isNotBlank() } ?: "LDP-78456"
+    val vehicleType = (profile["vehicleType"] as? String)?.takeIf { it.isNotBlank() } ?: "Electric Scooter"
+    val vehicleNumber = (profile["vehicleNumber"] as? String)?.takeIf { it.isNotBlank() } ?: "HR 12 AB 1234"
+    val licenseNumber = (profile["licenseNumber"] as? String)?.takeIf { it.isNotBlank() } ?: "HR12-2024-00918"
+    val kycStatus = (profile["kycStatus"] as? String)?.takeIf { it.isNotBlank() } ?: "Verified ✓"
+    val workingHours = (profile["workingHours"] as? String)?.takeIf { it.isNotBlank() } ?: "08:00 AM - 08:00 PM"
+
+    // Consolidate backend orders and worker tasks
+    val combinedOrders = (orders + workerJobs).distinctBy { it.id }.ifEmpty {
+        listOf(
+            OrderRecord(
+                id = 101,
+                vendorName = "Model Town Rohtak Hub",
+                itemsSummary = "3 Bags (Dry Clean) • Today, 10:00 AM",
+                totalPrice = 280.0,
+                pickupSlot = "10:00 AM",
+                deliverySlot = "04:00 PM",
+                paymentMethod = "COD",
+                status = "PICKUP_ASSIGNED",
+                userNotes = "Neha Gupta • 📞 +91 98765 11223 • 📍 H-12, Model Town, Rohtak"
+            ),
+            OrderRecord(
+                id = 102,
+                vendorName = "New Rajendra Nagar Hub",
+                itemsSummary = "4 Bags (Wash & Fold) • Today, 11:30 AM",
+                totalPrice = 360.0,
+                pickupSlot = "11:30 AM",
+                deliverySlot = "05:00 PM",
+                paymentMethod = "UPI",
+                status = "RECEIVED_AT_STORE",
+                userNotes = "Amit Verma • 📞 +91 98765 44556 • 📍 B-5, New Rajendra Nagar, Rohtak"
+            ),
+            OrderRecord(
+                id = 103,
+                vendorName = "Sector 2 Hub",
+                itemsSummary = "5 Bags (Wash & Iron) • Today, 01:00 PM",
+                totalPrice = 420.0,
+                pickupSlot = "01:00 PM",
+                deliverySlot = "07:00 PM",
+                paymentMethod = "COD",
+                status = "OUT_FOR_DELIVERY",
+                userNotes = "Pooja Yadav • 📞 +91 98765 77889 • 📍 Sector 14, Rohtak"
+            )
+        )
+    }
+
+    val pickupOrders = combinedOrders.filter {
+        val s = it.status.uppercase()
+        s in listOf("PLACED", "ACCEPTED", "PICKUP_ASSIGNED", "PICKUP PENDING", "PENDING")
+    }
+    val transitOrders = combinedOrders.filter {
+        val s = it.status.uppercase()
+        s in listOf("PICKED_UP", "RECEIVED_AT_STORE", "PROCESSING", "READY_FOR_DELIVERY", "OUT_FOR_DELIVERY", "IN TRANSIT")
+    }
+    val deliveredOrders = combinedOrders.filter {
+        val s = it.status.uppercase()
+        s in listOf("DELIVERED", "COMPLETED")
+    }
+
+    val displayedOrders = when (orderStatusTab) {
+        "Pickup" -> pickupOrders
+        "In Transit" -> transitOrders
+        else -> deliveredOrders
+    }
 
     Scaffold(
         bottomBar = {
@@ -6657,7 +6881,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                                 )
                                                 Spacer(modifier = Modifier.width(5.dp))
                                                 Text(
-                                                    text = if (isOnline) "You are Online" else "You are Offline",
+                                                    text = if (isOnline) "You are Online 🟢" else "You are Offline 🔴",
                                                     color = if (isOnline) Color(0xFF86EFAC) else Color(0xFFFCA5A5),
                                                     fontSize = 11.5.sp,
                                                     fontWeight = FontWeight.Medium
@@ -6669,7 +6893,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                     Switch(
                                         checked = isOnline,
                                         onCheckedChange = {
-                                            vm.isDeliveryPartnerOnline.value = it
+                                            vm.setDeliveryPartnerOnlineStatus(it)
                                             val statusText = if (it) "You are now ONLINE! Ready for runs 🛵" else "You are now OFFLINE."
                                             Toast.makeText(context, statusText, Toast.LENGTH_SHORT).show()
                                         },
@@ -6705,7 +6929,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                         Column(modifier = Modifier.weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text(
-                                                    text = "Rahul Sharma",
+                                                    text = driverName,
                                                     color = Color.White,
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 15.5.sp
@@ -6726,7 +6950,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                             }
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Text(
-                                                text = "Partner ID: LDP-78456",
+                                                text = "Partner ID: $partnerId",
                                                 color = Color.White.copy(alpha = 0.8f),
                                                 fontSize = 11.5.sp
                                             )
@@ -6816,6 +7040,11 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                             }
 
                             // 4 KPI Metric Cards (2x2 Grid)
+                            val todayPickupsCount = (stats["todayPickups"] as? Number)?.toInt() ?: maxOf(12, pickupOrders.size)
+                            val todayDeliveriesCount = (stats["todayDeliveries"] as? Number)?.toInt() ?: maxOf(9, deliveredOrders.size)
+                            val pendingOrdersCount = (stats["pendingOrders"] as? Number)?.toInt() ?: maxOf(4, transitOrders.size)
+                            val todayEarningsAmt = (stats["todayEarnings"] as? Number)?.toInt() ?: 1450
+
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -6837,7 +7066,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                             Column {
                                                 Text("Today's Pickups", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
                                                 Spacer(modifier = Modifier.height(4.dp))
-                                                Text("12", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
+                                                Text("$todayPickupsCount", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
                                             }
                                             Surface(shape = CircleShape, color = RoyalBlue.copy(alpha = 0.1f), modifier = Modifier.size(34.dp)) {
                                                 Box(contentAlignment = Alignment.Center) {
@@ -6867,7 +7096,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                             Column {
                                                 Text("Today's Deliveries", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
                                                 Spacer(modifier = Modifier.height(4.dp))
-                                                Text("9", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
+                                                Text("$todayDeliveriesCount", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
                                             }
                                             Surface(shape = CircleShape, color = Color(0xFF06B6D4).copy(alpha = 0.1f), modifier = Modifier.size(34.dp)) {
                                                 Box(contentAlignment = Alignment.Center) {
@@ -6902,7 +7131,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                             Column {
                                                 Text("Pending Orders", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
                                                 Spacer(modifier = Modifier.height(4.dp))
-                                                Text("4", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
+                                                Text("$pendingOrdersCount", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
                                             }
                                             Surface(shape = CircleShape, color = SaffronOrange.copy(alpha = 0.1f), modifier = Modifier.size(34.dp)) {
                                                 Box(contentAlignment = Alignment.Center) {
@@ -6938,7 +7167,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                             Column {
                                                 Text("Today's Earnings", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Medium)
                                                 Spacer(modifier = Modifier.height(4.dp))
-                                                Text("₹1,450", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
+                                                Text("₹$todayEarningsAmt", fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
                                             }
                                             Surface(shape = CircleShape, color = Color(0xFFEAB308).copy(alpha = 0.12f), modifier = Modifier.size(34.dp)) {
                                                 Box(contentAlignment = Alignment.Center) {
@@ -7088,8 +7317,8 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                         Text("Laundry Delivery Partner", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
                                     }
                                 }
-                                IconButton(onClick = { /* Calendar Filter */ }) {
-                                    Icon(Icons.Default.DateRange, contentDescription = "Calendar", tint = Color.White)
+                                IconButton(onClick = { vm.refreshWorkerJobs(); vm.refreshOrders() }) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.White)
                                 }
                             }
                         }
@@ -7120,7 +7349,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                             }
                         }
 
-                        // Status Filter Tabs with counts
+                        // Status Filter Tabs with dynamic counts
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -7128,9 +7357,9 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             val statusTabs = listOf(
-                                Triple("Pickup", "Pickup (6)", Color(0xFF1D4ED8)),
-                                Triple("In Transit", "In Transit (3)", Color(0xFF0D9488)),
-                                Triple("Delivered", "Delivered (12)", Color(0xFF16A34A))
+                                Triple("Pickup", "Pickup (${pickupOrders.size})", Color(0xFF1D4ED8)),
+                                Triple("In Transit", "In Transit (${transitOrders.size})", Color(0xFF0D9488)),
+                                Triple("Delivered", "Delivered (${deliveredOrders.size})", Color(0xFF16A34A))
                             )
                             statusTabs.forEach { (tabKey, label, activeColor) ->
                                 val isSelected = orderStatusTab == tabKey
@@ -7156,164 +7385,267 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                         Spacer(modifier = Modifier.height(10.dp))
 
                         // Orders List
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                                .padding(horizontal = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            contentPadding = PaddingValues(bottom = 20.dp)
-                        ) {
-                            val sampleOrders = listOf(
-                                Triple(
-                                    "LD123456",
-                                    "Neha Gupta",
-                                    Triple("H-12, Model Town, Rohtak", "Sector 5, Rohtak", "3 Bags (Dry Clean) • Today, 10:00 AM")
-                                ),
-                                Triple(
-                                    "LD123457",
-                                    "Amit Verma",
-                                    Triple("B-5, New Rajendra Nagar, Rohtak", "Model Town, Rohtak", "4 Bags (Wash & Fold) • Today, 11:30 AM")
-                                ),
-                                Triple(
-                                    "LD123458",
-                                    "Pooja Yadav",
-                                    Triple("Sector 2, Rohtak", "Sector 14, Rohtak", "5 Bags (Wash & Iron) • Today, 01:00 PM")
-                                )
-                            )
+                        if (displayedOrders.isEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("📦", fontSize = 48.sp)
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        "No $orderStatusTab Orders",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = Color(0xFF0F172A)
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        "Orders in this status will automatically appear here in real-time.",
+                                        fontSize = 12.sp,
+                                        color = Color(0xFF64748B),
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .padding(horizontal = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                contentPadding = PaddingValues(bottom = 20.dp)
+                            ) {
+                                items(displayedOrders) { order ->
+                                    val orderStatus = order.status.uppercase()
+                                    val isOutForDelivery = orderStatus == "OUT_FOR_DELIVERY" || orderStatus == "READY_FOR_DELIVERY"
+                                    val isPickupAssigned = orderStatus == "PICKUP_ASSIGNED" || orderStatus == "PLACED" || orderStatus == "ACCEPTED"
+                                    val isPickedUp = orderStatus == "PICKED_UP" || orderStatus == "RECEIVED_AT_STORE" || orderStatus == "PROCESSING"
 
-                            items(sampleOrders) { (orderId, custName, details) ->
-                                val (pickupLoc, dropLoc, itemsInfo) = details
-                                val isTransit = orderId == "LD123458"
-                                Card(
-                                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                                    shape = RoundedCornerShape(16.dp),
-                                    elevation = CardDefaults.cardElevation(2.dp),
-                                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Column(modifier = Modifier.padding(14.dp)) {
-                                        // Top Row: Order ID + Status Badge + Price
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text("Order ID: #$orderId", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Surface(
-                                                    color = if (isTransit) Color(0xFF0D9488) else RoyalBlue,
-                                                    shape = RoundedCornerShape(6.dp)
-                                                ) {
+                                    val statusBadgeColor = when {
+                                        orderStatus in listOf("DELIVERED", "COMPLETED") -> Color(0xFF16A34A)
+                                        orderStatus == "OUT_FOR_DELIVERY" -> Color(0xFF0D9488)
+                                        orderStatus == "READY_FOR_DELIVERY" -> Color(0xFFFF6B00)
+                                        orderStatus in listOf("PICKUP_ASSIGNED", "PLACED", "ACCEPTED") -> RoyalBlue
+                                        else -> Color(0xFF6366F1)
+                                    }
+
+                                    val customerName = if (order.userNotes.contains("•")) order.userNotes.substringBefore("•").trim() else "Customer #${order.id}"
+                                    val customerPhone = if (order.userNotes.contains("📞")) order.userNotes.substringAfter("📞").substringBefore("•").trim() else "+91 98765 43210"
+                                    val pickupLoc = order.vendorName.ifBlank { "Model Town, Rohtak" }
+                                    val dropLoc = if (order.userNotes.contains("📍")) order.userNotes.substringAfter("📍").trim() else "Sector 14, Rohtak"
+                                    val itemsInfo = order.itemsSummary.ifBlank { "3 Bags (Wash & Fold)" }
+                                    val paymentInfo = if (order.paymentMethod.contains("COD", ignoreCase = true)) "COD" else "UPI Paid"
+
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                                        shape = RoundedCornerShape(16.dp),
+                                        elevation = CardDefaults.cardElevation(2.dp),
+                                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(14.dp)) {
+                                            // Top Row: Order ID + Status Badge + Price
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Text(
-                                                        text = if (isTransit) "In Transit" else "Pickup",
-                                                        color = Color.White,
-                                                        fontSize = 10.sp,
+                                                        text = "Order ID: #${order.id}",
+                                                        fontSize = 12.5.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        color = Color(0xFF0F172A)
                                                     )
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Surface(
+                                                        color = statusBadgeColor,
+                                                        shape = RoundedCornerShape(6.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = order.status.replace("_", " "),
+                                                            color = Color.White,
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
                                                 }
-                                            }
-                                            Text("₹${if (orderId == "LD123456") "280 COD" else if (orderId == "LD123457") "360 UPI" else "420 COD"}", fontSize = 13.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
-                                        }
-
-                                        Spacer(modifier = Modifier.height(8.dp))
-
-                                        // Customer Name
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(custName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Icon(Icons.Default.Phone, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(14.dp))
-                                        }
-
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        Text("Pickup: $pickupLoc", fontSize = 11.5.sp, color = Color(0xFF475569))
-                                        Text("Drop: $dropLoc", fontSize = 11.5.sp, color = Color(0xFF475569))
-
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Surface(
-                                            color = Color(0xFFF8FAFC),
-                                            shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Text(
-                                                text = "🛍️ $itemsInfo",
-                                                fontSize = 11.sp,
-                                                color = Color(0xFF334155),
-                                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
-                                            )
-                                        }
-
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Text("Payment: ${if (orderId == "LD123457") "UPI" else "COD"}", fontSize = 11.5.sp, color = Color(0xFF16A34A), fontWeight = FontWeight.SemiBold)
-
-                                        Spacer(modifier = Modifier.height(10.dp))
-
-                                        // Action Buttons
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            // Call Button
-                                            OutlinedButton(
-                                                onClick = {
-                                                    val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:+919876543210"))
-                                                    context.startActivity(intent)
-                                                },
-                                                shape = RoundedCornerShape(8.dp),
-                                                modifier = Modifier.weight(0.9f),
-                                                contentPadding = PaddingValues(vertical = 6.dp)
-                                            ) {
-                                                Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(13.dp), tint = Color(0xFF0F172A))
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("Call", fontSize = 11.sp, color = Color(0xFF0F172A), fontWeight = FontWeight.Bold)
+                                                Text(
+                                                    text = "₹${order.totalPrice.toInt()} $paymentInfo",
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Black,
+                                                    color = Color(0xFF0F172A)
+                                                )
                                             }
 
-                                            // Navigate Button
-                                            OutlinedButton(
-                                                onClick = {
-                                                    val gmmIntentUri = android.net.Uri.parse("geo:0,0?q=" + android.net.Uri.encode(dropLoc))
-                                                    val mapIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, gmmIntentUri)
-                                                    mapIntent.setPackage("com.google.android.apps.maps")
-                                                    try {
-                                                        context.startActivity(mapIntent)
-                                                    } catch (e: Exception) {
-                                                        val browserIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://www.google.com/maps/search/?api=1&query=" + android.net.Uri.encode(dropLoc)))
-                                                        context.startActivity(browserIntent)
-                                                    }
-                                                },
-                                                shape = RoundedCornerShape(8.dp),
-                                                modifier = Modifier.weight(1.1f),
-                                                contentPadding = PaddingValues(vertical = 6.dp)
-                                            ) {
-                                                Icon(Icons.Default.Navigation, contentDescription = null, modifier = Modifier.size(13.dp), tint = RoyalBlue)
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("Navigate", fontSize = 11.sp, color = RoyalBlue, fontWeight = FontWeight.Bold)
+                                            Spacer(modifier = Modifier.height(8.dp))
+
+                                            // Customer Name
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(customerName, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Icon(Icons.Default.Phone, contentDescription = null, tint = RoyalBlue, modifier = Modifier.size(14.dp))
                                             }
 
-                                            // Status Update / Complete Button
-                                            Button(
-                                                onClick = {
-                                                    if (isTransit) {
-                                                        showOtpDialog = true
-                                                    } else {
-                                                        Toast.makeText(context, "Status updated for #$orderId! 🚀", Toast.LENGTH_SHORT).show()
-                                                    }
-                                                },
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = if (isTransit) Color(0xFF16A34A) else SaffronOrange
-                                                ),
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text("Pickup: $pickupLoc", fontSize = 11.5.sp, color = Color(0xFF475569))
+                                            Text("Drop: $dropLoc", fontSize = 11.5.sp, color = Color(0xFF475569))
+
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Surface(
+                                                color = Color(0xFFF8FAFC),
                                                 shape = RoundedCornerShape(8.dp),
-                                                modifier = Modifier.weight(1.4f),
-                                                contentPadding = PaddingValues(vertical = 6.dp)
+                                                modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Text(
-                                                    text = if (isTransit) "Complete Delivery" else "Update Status",
+                                                    text = "🛍️ $itemsInfo",
                                                     fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
+                                                    color = Color(0xFF334155),
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp)
                                                 )
+                                            }
+
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text("Payment: $paymentInfo", fontSize = 11.5.sp, color = Color(0xFF16A34A), fontWeight = FontWeight.SemiBold)
+
+                                            Spacer(modifier = Modifier.height(10.dp))
+
+                                            // Action Buttons
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                // Call Button
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        val cleanCustPhone = customerPhone.replace(" ", "")
+                                                        val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:$cleanCustPhone"))
+                                                        context.startActivity(intent)
+                                                    },
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    modifier = Modifier.weight(0.9f),
+                                                    contentPadding = PaddingValues(vertical = 6.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(13.dp), tint = Color(0xFF0F172A))
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Call", fontSize = 11.sp, color = Color(0xFF0F172A), fontWeight = FontWeight.Bold)
+                                                }
+
+                                                // Navigate Button
+                                                val dest = if (orderStatus in listOf("PLACED", "ACCEPTED", "PICKUP_ASSIGNED")) pickupLoc else dropLoc
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        val gmmIntentUri = android.net.Uri.parse("geo:0,0?q=" + android.net.Uri.encode(dest))
+                                                        val mapIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, gmmIntentUri)
+                                                        mapIntent.setPackage("com.google.android.apps.maps")
+                                                        try {
+                                                            context.startActivity(mapIntent)
+                                                        } catch (e: Exception) {
+                                                            val browserIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://www.google.com/maps/search/?api=1&query=" + android.net.Uri.encode(dest)))
+                                                            context.startActivity(browserIntent)
+                                                        }
+                                                    },
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    modifier = Modifier.weight(1.1f),
+                                                    contentPadding = PaddingValues(vertical = 6.dp)
+                                                ) {
+                                                    Icon(Icons.Default.Navigation, contentDescription = null, modifier = Modifier.size(13.dp), tint = RoyalBlue)
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Text("Navigate", fontSize = 11.sp, color = RoyalBlue, fontWeight = FontWeight.Bold)
+                                                }
+
+                                                // Status Update / Complete Button
+                                                when {
+                                                    orderStatus in listOf("PLACED", "ACCEPTED") -> {
+                                                        Button(
+                                                            onClick = {
+                                                                vm.acceptDeliveryRun(order.id.toString()) {
+                                                                    Toast.makeText(context, "Run Accepted! 🛵", Toast.LENGTH_SHORT).show()
+                                                                }
+                                                            },
+                                                            colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            modifier = Modifier.weight(1.4f),
+                                                            contentPadding = PaddingValues(vertical = 6.dp)
+                                                        ) {
+                                                            Text("Accept Run 🛵", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                        }
+                                                    }
+                                                    orderStatus == "PICKUP_ASSIGNED" -> {
+                                                        Button(
+                                                            onClick = {
+                                                                vm.updateOrderStatusDirectly(order.id, "PICKED_UP")
+                                                                Toast.makeText(context, "Marked as Picked Up! 📦", Toast.LENGTH_SHORT).show()
+                                                            },
+                                                            colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            modifier = Modifier.weight(1.4f),
+                                                            contentPadding = PaddingValues(vertical = 6.dp)
+                                                        ) {
+                                                            Text("Confirm Pickup 📦", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                        }
+                                                    }
+                                                    orderStatus == "PICKED_UP" -> {
+                                                        Button(
+                                                            onClick = {
+                                                                vm.updateOrderStatusDirectly(order.id, "RECEIVED_AT_STORE")
+                                                                Toast.makeText(context, "Garments handed over at hub! 🏪", Toast.LENGTH_SHORT).show()
+                                                            },
+                                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            modifier = Modifier.weight(1.4f),
+                                                            contentPadding = PaddingValues(vertical = 6.dp)
+                                                        ) {
+                                                            Text("Store Handover 🏪", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                        }
+                                                    }
+                                                    orderStatus == "READY_FOR_DELIVERY" -> {
+                                                        Button(
+                                                            onClick = {
+                                                                vm.updateOrderStatusDirectly(order.id, "OUT_FOR_DELIVERY")
+                                                                Toast.makeText(context, "Out for doorstep delivery! 🚀", Toast.LENGTH_SHORT).show()
+                                                            },
+                                                            colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            modifier = Modifier.weight(1.4f),
+                                                            contentPadding = PaddingValues(vertical = 6.dp)
+                                                        ) {
+                                                            Text("Start Delivery 🚀", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                        }
+                                                    }
+                                                    orderStatus == "OUT_FOR_DELIVERY" -> {
+                                                        Button(
+                                                            onClick = {
+                                                                selectedOrderForOtp = order
+                                                                otpInput = ""
+                                                                showOtpDialog = true
+                                                            },
+                                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            modifier = Modifier.weight(1.4f),
+                                                            contentPadding = PaddingValues(vertical = 6.dp)
+                                                        ) {
+                                                            Text("Complete Delivery 🎉", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                        }
+                                                    }
+                                                    else -> {
+                                                        Surface(
+                                                            color = Color(0xFFDCFCE7),
+                                                            shape = RoundedCornerShape(8.dp),
+                                                            modifier = Modifier.weight(1.4f)
+                                                        ) {
+                                                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 6.dp)) {
+                                                                Text("✓ Delivered", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF15803D))
+                                                            }
+                                                        }
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -7355,8 +7687,8 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                         Text("Laundry Delivery Partner", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
                                     }
                                 }
-                                IconButton(onClick = { /* Calendar */ }) {
-                                    Icon(Icons.Default.DateRange, contentDescription = "Calendar", tint = Color.White)
+                                IconButton(onClick = { vm.loadDeliveryPartnerData() }) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color.White)
                                 }
                             }
                         }
@@ -7393,15 +7725,20 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                 .padding(horizontal = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
+                            val todayEarn = (stats["todayEarnings"] as? Number)?.toInt() ?: 1450
+                            val weekEarn = (stats["weeklyEarnings"] as? Number)?.toInt() ?: 8620
+                            val monthEarn = (stats["monthlyEarnings"] as? Number)?.toInt() ?: 32450
+                            val pendingPayoutAmt = (stats["pendingPayout"] as? Number)?.toInt() ?: 6750
+
                             // 3 Metric Cards Row
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 listOf(
-                                    Triple("Today", "₹1,450", "↗ 15%"),
-                                    Triple("This Week", "₹8,620", "↗ 18%"),
-                                    Triple("This Month", "₹32,450", "↗ 22%")
+                                    Triple("Today", "₹$todayEarn", "↗ 15%"),
+                                    Triple("This Week", "₹$weekEarn", "↗ 18%"),
+                                    Triple("This Month", "₹$monthEarn", "↗ 22%")
                                 ).forEach { (label, amount, growth) ->
                                     Card(
                                         modifier = Modifier.weight(1f),
@@ -7438,7 +7775,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                 ) {
                                     Column {
                                         Text("Pending Payout", fontSize = 11.sp, color = Color(0xFF64748B))
-                                        Text("₹6,750", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
+                                        Text("₹$pendingPayoutAmt", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color(0xFF0F172A))
                                         Text("Will be paid on 25 May 2026", fontSize = 11.sp, color = Color(0xFF64748B))
                                     }
                                     Surface(
@@ -7571,7 +7908,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
 
                             Button(
                                 onClick = {
-                                    Toast.makeText(context, "Instant UPI payout requested! Settlement processing.", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, "Instant UPI payout of ₹$pendingPayoutAmt requested! Settlement processing ⚡", Toast.LENGTH_LONG).show()
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
@@ -7617,7 +7954,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                         Text("Laundry Delivery Partner", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
                                     }
                                 }
-                                IconButton(onClick = { /* Notifications */ }) {
+                                IconButton(onClick = { Toast.makeText(context, "No unread delivery partner notifications.", Toast.LENGTH_SHORT).show() }) {
                                     Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = Color.White)
                                 }
                             }
@@ -7655,7 +7992,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                     Spacer(modifier = Modifier.height(8.dp))
 
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("Rahul Sharma", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                        Text(driverName, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
                                         Spacer(modifier = Modifier.width(6.dp))
                                         Surface(
                                             color = Color(0xFFDCFCE7),
@@ -7665,13 +8002,13 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Text("✓ Verified", color = Color(0xFF15803D), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                Text("✓ $kycStatus", color = Color(0xFF15803D), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                             }
                                         }
                                     }
                                     Spacer(modifier = Modifier.height(2.dp))
-                                    Text("📞 +91 98765 43210", fontSize = 12.sp, color = Color(0xFF64748B))
-                                    Text("Partner ID: LDP-78456", fontSize = 12.sp, color = Color(0xFF64748B))
+                                    Text("📞 $driverPhone", fontSize = 12.sp, color = Color(0xFF64748B))
+                                    Text("Partner ID: $partnerId", fontSize = 12.sp, color = Color(0xFF64748B))
 
                                     Spacer(modifier = Modifier.height(10.dp))
                                     Surface(
@@ -7686,8 +8023,8 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                             Text("🛵", fontSize = 18.sp)
                                             Spacer(modifier = Modifier.width(8.dp))
                                             Column {
-                                                Text("Vehicle: Electric Scooter", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF0F172A))
-                                                Text("Bike No.: HR 12 AB 1234", fontSize = 11.sp, color = Color(0xFF64748B))
+                                                Text("Vehicle: $vehicleType", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF0F172A))
+                                                Text("Bike No.: $vehicleNumber | License: $licenseNumber", fontSize = 11.sp, color = Color(0xFF64748B))
                                             }
                                         }
                                     }
@@ -7714,12 +8051,16 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Column {
                                             Text("Availability", fontSize = 11.sp, color = Color(0xFF64748B))
-                                            Text(if (isOnline) "You are Online" else "You are Offline", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                                            Text(if (isOnline) "You are Online 🟢" else "You are Offline 🔴", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
                                         }
                                     }
                                     Switch(
                                         checked = isOnline,
-                                        onCheckedChange = { vm.isDeliveryPartnerOnline.value = it },
+                                        onCheckedChange = {
+                                            vm.setDeliveryPartnerOnlineStatus(it)
+                                            val statusText = if (it) "You are now ONLINE! Ready for runs 🛵" else "You are now OFFLINE."
+                                            Toast.makeText(context, statusText, Toast.LENGTH_SHORT).show()
+                                        },
                                         colors = SwitchDefaults.colors(
                                             checkedThumbColor = Color.White,
                                             checkedTrackColor = Color(0xFF22C55E)
@@ -7739,10 +8080,10 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                 Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
                                     val menuItems = listOf(
                                         Triple("📍", "Location Permission", "Allowed"),
-                                        Triple("⏰", "Working Hours", "08:00 AM - 08:00 PM"),
+                                        Triple("⏰", "Working Hours", workingHours),
                                         Triple("👤", "Personal Info", ""),
-                                        Triple("🏦", "Bank Details", ""),
-                                        Triple("📄", "Documents & KYC", "Verified ✓"),
+                                        Triple("🏦", "Bank Details", "HDFC •••• 5678"),
+                                        Triple("📄", "Documents & KYC", kycStatus),
                                         Triple("🎧", "Support & Help", "")
                                     )
 
@@ -7751,7 +8092,19 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .clickable {
-                                                    Toast.makeText(context, "$title clicked", Toast.LENGTH_SHORT).show()
+                                                    when (title) {
+                                                        "Personal Info" -> showPersonalInfoDialog = true
+                                                        "Bank Details" -> showBankDetailsDialog = true
+                                                        "Working Hours" -> showWorkingHoursDialog = true
+                                                        "Documents & KYC" -> showKycDialog = true
+                                                        "Location Permission" -> {
+                                                            Toast.makeText(context, "Location permission is enabled and active!", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                        "Support & Help" -> {
+                                                            val intent = android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:+9118002004567"))
+                                                            context.startActivity(intent)
+                                                        }
+                                                    }
                                                 }
                                                 .padding(vertical = 12.dp),
                                             verticalAlignment = Alignment.CenterVertically,
@@ -7800,6 +8153,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                             // Logout Button
                             TextButton(
                                 onClick = {
+                                    vm.deliveryApplicationStatus.value = "PENDING"
                                     vm.navigateBack()
                                     Toast.makeText(context, "Logged out from Delivery Partner Workspace", Toast.LENGTH_SHORT).show()
                                 },
@@ -7820,6 +8174,8 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
     // DIALOG: VERIFY DELIVERY OTP
     // ==========================================
     if (showOtpDialog) {
+        val targetOrder = selectedOrderForOtp
+        val orderCode = targetOrder?.id?.toString() ?: "103"
         AlertDialog(
             onDismissRequest = { if (!isVerifyingOtp) showOtpDialog = false },
             title = {
@@ -7831,7 +8187,7 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Ask customer for the 4-digit Delivery OTP sent to their mobile for Order #LD123458.", fontSize = 12.5.sp, color = Color(0xFF475569))
+                    Text("Ask customer for the 4-digit Delivery OTP sent to their mobile for Order #$orderCode.", fontSize = 12.5.sp, color = Color(0xFF475569))
                     OutlinedTextField(
                         value = otpInput,
                         onValueChange = { if (it.length <= 4) otpInput = it },
@@ -7846,12 +8202,17 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
                 Button(
                     onClick = {
                         val parsedOtp = otpInput.toIntOrNull()
+                        val orderIdToVerify = targetOrder?.id?.toString() ?: "103"
                         if (parsedOtp != null) {
                             isVerifyingOtp = true
-                            vm.completeDeliveryWithOtp("LD123458", parsedOtp) { success, msg ->
+                            vm.completeDeliveryWithOtp(orderIdToVerify, parsedOtp) { success: Boolean, msg: String ->
                                 isVerifyingOtp = false
                                 showOtpDialog = false
-                                Toast.makeText(context, "Order #LD123458 successfully delivered! 🎉", Toast.LENGTH_LONG).show()
+                                if (success) {
+                                    Toast.makeText(context, "Order #$orderCode successfully delivered! 🎉", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                }
                             }
                         } else {
                             Toast.makeText(context, "Please enter 4-digit OTP!", Toast.LENGTH_SHORT).show()
@@ -7912,6 +8273,108 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
             dismissButton = {
                 TextButton(onClick = { showServiceZoneDialog = false }) {
                     Text("Cancel", color = Color.Gray)
+                }
+            }
+        )
+    }
+
+    // ==========================================
+    // DIALOG: PERSONAL INFO
+    // ==========================================
+    if (showPersonalInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showPersonalInfoDialog = false },
+            title = { Text("👤 Personal Information", fontWeight = FontWeight.Bold, color = RoyalBlue) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Full Name: $driverName", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Mobile: $driverPhone", fontSize = 12.5.sp, color = Color(0xFF475569))
+                    Text("City / Zone: $serviceZoneText", fontSize = 12.5.sp, color = Color(0xFF475569))
+                    Text("Partner ID: $partnerId", fontSize = 12.5.sp, color = Color(0xFF475569))
+                    Text("Emergency Contact: +91 98111 22334", fontSize = 12.5.sp, color = Color(0xFF475569))
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showPersonalInfoDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)) {
+                    Text("Close", color = Color.White)
+                }
+            }
+        )
+    }
+
+    // ==========================================
+    // DIALOG: BANK DETAILS
+    // ==========================================
+    if (showBankDetailsDialog) {
+        AlertDialog(
+            onDismissRequest = { showBankDetailsDialog = false },
+            title = { Text("🏦 Settlement Bank Details", fontWeight = FontWeight.Bold, color = RoyalBlue) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Bank Name: HDFC Bank Ltd.", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Account No: •••••••• 5678", fontSize = 12.5.sp, color = Color(0xFF475569))
+                    Text("IFSC Code: HDFC0001234", fontSize = 12.5.sp, color = Color(0xFF475569))
+                    Text("UPI ID: 9876543210@okhdfcbank", fontSize = 12.5.sp, color = Color(0xFF475569))
+                    Text("Payout Frequency: Weekly (Every Monday)", fontSize = 12.sp, color = Color(0xFF16A34A), fontWeight = FontWeight.SemiBold)
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showBankDetailsDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)) {
+                    Text("Close", color = Color.White)
+                }
+            }
+        )
+    }
+
+    // ==========================================
+    // DIALOG: WORKING HOURS
+    // ==========================================
+    if (showWorkingHoursDialog) {
+        AlertDialog(
+            onDismissRequest = { showWorkingHoursDialog = false },
+            title = { Text("⏰ Operational Working Hours", fontWeight = FontWeight.Bold, color = RoyalBlue) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Shift: General Shift", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Timings: $workingHours", fontSize = 12.5.sp, color = Color(0xFF475569))
+                    Text("Active Days: Monday to Sunday", fontSize = 12.5.sp, color = Color(0xFF475569))
+                    Text("Break Window: 02:00 PM - 03:00 PM", fontSize = 12.5.sp, color = Color(0xFF475569))
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showWorkingHoursDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)) {
+                    Text("Close", color = Color.White)
+                }
+            }
+        )
+    }
+
+    // ==========================================
+    // DIALOG: DOCUMENTS & KYC
+    // ==========================================
+    if (showKycDialog) {
+        AlertDialog(
+            onDismissRequest = { showKycDialog = false },
+            title = { Text("📄 Documents & KYC Status", fontWeight = FontWeight.Bold, color = RoyalBlue) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        Text("Aadhaar Card Verification", fontSize = 12.5.sp)
+                        Text("Verified ✓", color = Color(0xFF16A34A), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        Text("Driving License ($licenseNumber)", fontSize = 12.5.sp)
+                        Text("Verified ✓", color = Color(0xFF16A34A), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        Text("Vehicle Registration ($vehicleNumber)", fontSize = 12.5.sp)
+                        Text("Verified ✓", color = Color(0xFF16A34A), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = { showKycDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)) {
+                    Text("Close", color = Color.White)
                 }
             }
         )

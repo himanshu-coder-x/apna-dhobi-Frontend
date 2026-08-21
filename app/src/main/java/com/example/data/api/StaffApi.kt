@@ -5,7 +5,22 @@ import retrofit2.http.*
 
 @JvmSuppressWildcards
 interface StaffApi {
-    // Worker management
+    // Worker / Delivery Partner management
+    @POST("workers/verify-phone")
+    suspend fun verifyWorkerPhone(@Body body: Map<String, String>): Response<Map<String, Any>>
+
+    @POST("workers/register")
+    suspend fun registerDeliveryPartner(@Body body: Map<String, Any>): Response<Map<String, Any>>
+
+    @GET("workers/profile")
+    suspend fun getWorkerProfile(): Response<Map<String, Any>>
+
+    @GET("workers/stats")
+    suspend fun getWorkerStats(): Response<Map<String, Any>>
+
+    @PATCH("workers/availability")
+    suspend fun updateWorkerAvailability(@Body body: Map<String, Boolean>): Response<Map<String, Any>>
+
     @POST("workers")
     suspend fun registerWorker(@Body body: Map<String, String>): Response<Map<String, Any>>
 
@@ -28,3 +43,4 @@ interface StaffApi {
     @PATCH("tasks/{id}/status")
     suspend fun updateTaskStatus(@Path("id") id: String, @Body body: Map<String, String>): Response<Map<String, Any>>
 }
+
