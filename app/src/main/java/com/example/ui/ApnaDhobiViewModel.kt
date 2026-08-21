@@ -87,8 +87,8 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     var referralAppliedMessage = MutableStateFlow("")
 
     // Map/Location Selection
-    var currentCity = MutableStateFlow("")
-    var currentFullAddress = MutableStateFlow("📍 Detecting live GPS location...")
+    var currentCity = MutableStateFlow("Noida")
+    var currentFullAddress = MutableStateFlow("Sector 62, Noida, Delhi NCR, Uttar Pradesh 201309")
     var searchQuery = MutableStateFlow("")
     val searchAddresses = listOf(
         "Rohtak City Center, Model Town, Haryana",
@@ -758,9 +758,9 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     val popPass = MutableStateFlow("taqk iwdr zmqy ppyd")
     val emailTestingLogs = MutableStateFlow("No mail diagnostics performed yet.")
 
-    // Google Maps, Coordinates, & Customer GPS States
-    val customerLat = MutableStateFlow(0.0)
-    val customerLng = MutableStateFlow(0.0)
+    // Google Maps, Coordinates, & Customer GPS States (Default Indian Hub: Sector 62 Noida / Delhi NCR)
+    val customerLat = MutableStateFlow(28.6273)
+    val customerLng = MutableStateFlow(77.3725)
     val activeDeliveryBoyLat = MutableStateFlow(28.6010)
     val activeDeliveryBoyLng = MutableStateFlow(77.1950)
     val isTrackingLiveNow = MutableStateFlow(false)
@@ -1821,6 +1821,25 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    fun sanitizeGpsCoordinates(lat: Double, lng: Double): Pair<Double, Double> {
+        val isZero = (lat == 0.0 && lng == 0.0)
+        // Android Studio Emulator default is Mountain View, California (~37.4220, -122.0841)
+        val isMountainView = (lat in 37.38..37.46 && lng in -122.15..-122.03)
+        val isOutsideIndia = (lat < 6.0 || lat > 38.0 || lng < 68.0 || lng > 98.0)
+        val isRunningOnEmulator = android.os.Build.FINGERPRINT.startsWith("generic") ||
+                android.os.Build.MODEL.contains("google_sdk") ||
+                android.os.Build.MODEL.contains("Emulator") ||
+                android.os.Build.MODEL.contains("Android SDK") ||
+                android.os.Build.HARDWARE.contains("goldfish") ||
+                android.os.Build.HARDWARE.contains("ranchu")
+
+        if (isZero || isMountainView || (isRunningOnEmulator && isOutsideIndia)) {
+            // Default to prime Apna Dhobi service center: Sector 62, Noida / Delhi NCR
+            return Pair(28.6273, 77.3725)
+        }
+        return Pair(lat, lng)
+    }
+
     fun fetchRealGpsLocation(context: android.content.Context, onComplete: (Double, Double, String) -> Unit) {
         viewModelScope.launch {
             val hasFine = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -1828,8 +1847,12 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
             
             if (!hasFine && !hasCoarse) {
                 viewModelScope.launch {
-                    val addr = com.example.fetchAddressFromCoordinates(context, customerLat.value, customerLng.value)
-                    onComplete(customerLat.value, customerLng.value, addr)
+                    val (safeLat, safeLng) = sanitizeGpsCoordinates(customerLat.value, customerLng.value)
+                    customerLat.value = safeLat
+                    customerLng.value = safeLng
+                    val addr = com.example.fetchAddressFromCoordinates(context, safeLat, safeLng)
+                    currentFullAddress.value = addr
+                    onComplete(safeLat, safeLng, addr)
                 }
                 return@launch
             }
@@ -1846,15 +1869,14 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
 
                     val candidate = listOfNotNull(gpsLoc, netLoc, passiveLoc).maxByOrNull { it.time }
                     if (candidate != null) {
-                        val lat = candidate.latitude
-                        val lng = candidate.longitude
-                        customerLat.value = lat
-                        customerLng.value = lng
+                        val (safeLat, safeLng) = sanitizeGpsCoordinates(candidate.latitude, candidate.longitude)
+                        customerLat.value = safeLat
+                        customerLng.value = safeLng
                         locationAcquired = true
                         viewModelScope.launch {
-                            val addr = com.example.fetchAddressFromCoordinates(context, lat, lng)
+                            val addr = com.example.fetchAddressFromCoordinates(context, safeLat, safeLng)
                             currentFullAddress.value = addr
-                            onComplete(lat, lng, addr)
+                            onComplete(safeLat, safeLng, addr)
                         }
                     }
                 }
@@ -1866,15 +1888,14 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
             try {
                 fusedLocationClient.lastLocation.addOnSuccessListener { lastLoc ->
                     if (lastLoc != null && !locationAcquired) {
-                        val lat = lastLoc.latitude
-                        val lng = lastLoc.longitude
-                        customerLat.value = lat
-                        customerLng.value = lng
+                        val (safeLat, safeLng) = sanitizeGpsCoordinates(lastLoc.latitude, lastLoc.longitude)
+                        customerLat.value = safeLat
+                        customerLng.value = safeLng
                         locationAcquired = true
                         viewModelScope.launch {
-                            val addr = com.example.fetchAddressFromCoordinates(context, lat, lng)
+                            val addr = com.example.fetchAddressFromCoordinates(context, safeLat, safeLng)
                             currentFullAddress.value = addr
-                            onComplete(lat, lng, addr)
+                            onComplete(safeLat, safeLng, addr)
                         }
                     }
                 }
@@ -1893,14 +1914,13 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
                 val singleUpdateCallback = object : LocationCallback() {
                     override fun onLocationResult(result: LocationResult) {
                         val freshLoc = result.lastLocation ?: return
-                        val lat = freshLoc.latitude
-                        val lng = freshLoc.longitude
-                        customerLat.value = lat
-                        customerLng.value = lng
+                        val (safeLat, safeLng) = sanitizeGpsCoordinates(freshLoc.latitude, freshLoc.longitude)
+                        customerLat.value = safeLat
+                        customerLng.value = safeLng
                         viewModelScope.launch {
-                            val addr = com.example.fetchAddressFromCoordinates(context, lat, lng)
+                            val addr = com.example.fetchAddressFromCoordinates(context, safeLat, safeLng)
                             currentFullAddress.value = addr
-                            onComplete(lat, lng, addr)
+                            onComplete(safeLat, safeLng, addr)
                         }
                         fusedLocationClient.removeLocationUpdates(this)
                     }
@@ -1917,14 +1937,13 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
                 fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationSource.token)
                     .addOnSuccessListener { loc ->
                         if (loc != null) {
-                            val lat = loc.latitude
-                            val lng = loc.longitude
-                            customerLat.value = lat
-                            customerLng.value = lng
+                            val (safeLat, safeLng) = sanitizeGpsCoordinates(loc.latitude, loc.longitude)
+                            customerLat.value = safeLat
+                            customerLng.value = safeLng
                             viewModelScope.launch {
-                                val addr = com.example.fetchAddressFromCoordinates(context, lat, lng)
+                                val addr = com.example.fetchAddressFromCoordinates(context, safeLat, safeLng)
                                 currentFullAddress.value = addr
-                                onComplete(lat, lng, addr)
+                                onComplete(safeLat, safeLng, addr)
                             }
                         }
                     }

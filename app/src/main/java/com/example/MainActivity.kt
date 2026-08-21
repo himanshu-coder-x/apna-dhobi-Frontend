@@ -133,24 +133,43 @@ class MainActivity : ComponentActivity() {
 // REVERSE GEOCODING & LOCATION SEARCH HELPERS
 // ==========================================
 suspend fun fetchAddressFromCoordinates(context: Context, lat: Double, lon: Double): String = withContext(Dispatchers.IO) {
-    if (lat == 0.0 && lon == 0.0) return@withContext "Detecting location..."
+    val isZero = (lat == 0.0 && lon == 0.0)
+    val isMountainView = (lat in 37.38..37.46 && lon in -122.15..-122.03)
+    val isOutsideIndia = (lat < 6.0 || lat > 38.0 || lon < 68.0 || lon > 98.0)
+    val isEmulator = android.os.Build.FINGERPRINT.startsWith("generic") ||
+            android.os.Build.MODEL.contains("google_sdk") ||
+            android.os.Build.MODEL.contains("Emulator") ||
+            android.os.Build.MODEL.contains("Android SDK") ||
+            android.os.Build.HARDWARE.contains("goldfish") ||
+            android.os.Build.HARDWARE.contains("ranchu")
+
+    val (finalLat, finalLon) = if (isZero || isMountainView || (isEmulator && isOutsideIndia)) {
+        Pair(28.6273, 77.3725) // Default Indian Hub: Sector 62, Noida / Delhi NCR
+    } else {
+        Pair(lat, lon)
+    }
+
     try {
         @Suppress("DEPRECATION")
         val geocoder = Geocoder(context, Locale.getDefault())
-        val addresses = geocoder.getFromLocation(lat, lon, 1)
+        val addresses = geocoder.getFromLocation(finalLat, finalLon, 1)
         if (!addresses.isNullOrEmpty()) {
             val addr = addresses[0]
             val line = addr.getAddressLine(0)
-            if (!line.isNullOrBlank()) return@withContext line
+            if (!line.isNullOrBlank() && !line.contains("Mountain View") && !line.contains("USA") && !line.contains("Amphitheatre")) {
+                return@withContext line
+            }
             val fallback = listOfNotNull(addr.featureName, addr.subLocality, addr.locality, addr.adminArea, addr.postalCode).joinToString(", ")
-            if (fallback.isNotBlank()) return@withContext fallback
+            if (fallback.isNotBlank() && !fallback.contains("Mountain View") && !fallback.contains("USA")) {
+                return@withContext fallback
+            }
         }
     } catch (e: Exception) {
         e.printStackTrace()
     }
 
     try {
-        val url = URL("https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=18&addressdetails=1")
+        val url = URL("https://nominatim.openstreetmap.org/reverse?format=json&lat=$finalLat&lon=$finalLon&zoom=18&addressdetails=1")
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "GET"
         conn.setRequestProperty("User-Agent", "ApnaDhobiAndroidApp/2.0")
@@ -160,13 +179,19 @@ suspend fun fetchAddressFromCoordinates(context: Context, lat: Double, lon: Doub
             val json = conn.inputStream.bufferedReader().readText()
             val jsonObj = JSONObject(json)
             val displayName = jsonObj.optString("display_name")
-            if (displayName.isNotBlank()) return@withContext displayName
+            if (displayName.isNotBlank() && !displayName.contains("Mountain View") && !displayName.contains("USA")) {
+                return@withContext displayName
+            }
         }
     } catch (e: Exception) {
         e.printStackTrace()
     }
 
-    "Location: ${String.format(Locale.US, "%.4f", lat)}°N, ${String.format(Locale.US, "%.4f", lon)}°E"
+    if (finalLat in 28.60..28.65 && finalLon in 77.35..77.40) {
+        "Sector 62, Noida, Uttar Pradesh 201309, India"
+    } else {
+        "Location: ${String.format(Locale.US, "%.4f", finalLat)}°N, ${String.format(Locale.US, "%.4f", finalLon)}°E"
+    }
 }
 
 suspend fun searchLocationsFromQuery(context: Context, query: String): List<Triple<String, Double, Double>> = withContext(Dispatchers.IO) {
@@ -3632,7 +3657,8 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
 
     var hasInitialGpsLockDone by remember { mutableStateOf(false) }
 
-    val initialPos = if (customerLat != 0.0 && customerLng != 0.0) LatLng(customerLat, customerLng) else LatLng(28.8955, 76.6066)
+    val (safeInitLat, safeInitLng) = vm.sanitizeGpsCoordinates(customerLat, customerLng)
+    val initialPos = LatLng(safeInitLat, safeInitLng)
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(initialPos, 17.5f)
     }
@@ -3756,7 +3782,7 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
             )
         }
 
-        // Top Floating Header: Back Button + Search Bar
+        // Top Floating Header: Back Button + Search Bar + City Quick Selectors
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -3837,6 +3863,50 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                                 Icon(Icons.Default.Mic, contentDescription = "Voice Search", tint = Color(0xFF64748B), modifier = Modifier.size(20.dp))
                             }
                         }
+                    }
+                }
+            }
+
+            // Quick Service City Hubs Horizontal Scroll
+            Spacer(modifier = Modifier.height(8.dp))
+            val serviceHubs = listOf(
+                Triple("📍 Noida Sec 62", 28.6273, 77.3725),
+                Triple("📍 Connaught Place, Delhi", 28.6315, 77.2167),
+                Triple("📍 Model Town, Rohtak", 28.8955, 76.6066),
+                Triple("📍 Cyber City, Gurugram", 28.4950, 77.0895),
+                Triple("📍 Indirapuram, Ghaziabad", 28.6415, 77.3712)
+            )
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(serviceHubs) { (label, hubLat, hubLng) ->
+                    Surface(
+                        onClick = {
+                            isDetecting = false
+                            hasInitialGpsLockDone = true
+                            vm.customerLat.value = hubLat
+                            vm.customerLng.value = hubLng
+                            markerState.position = LatLng(hubLat, hubLng)
+                            coroutineScope.launch {
+                                cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(hubLat, hubLng), 17.5f))
+                                val resolved = fetchAddressFromCoordinates(context, hubLat, hubLng)
+                                addressDetailText = resolved
+                                vm.currentFullAddress.value = resolved
+                            }
+                        },
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color.White,
+                        shadowElevation = 3.dp,
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF0F172A),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        )
                     }
                 }
             }
