@@ -644,20 +644,20 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
         address: String,
         logoText: String,
         bannerColor: String,
-        onComplete: (Boolean) -> Unit
+        onComplete: (Boolean, String) -> Unit
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            val vendor = repository.registerVendor(storeName, description, address, logoText, bannerColor)
-            if (vendor != null) {
+            val (success, message) = repository.registerVendorDetailed(storeName, description, address, logoText, bannerColor)
+            if (success) {
                 vendorApplicationStatus.value = "APPROVED"
                 withContext(Dispatchers.Main) {
-                    showCustomAlert("Vendor Registration submitted successfully! 🎉")
-                    onComplete(true)
+                    showCustomAlert(message)
+                    onComplete(true, message)
                 }
             } else {
                 withContext(Dispatchers.Main) {
-                    showCustomAlert("Failed to submit vendor application", isError = true)
-                    onComplete(false)
+                    showCustomAlert(message, isError = true)
+                    onComplete(false, message)
                 }
             }
         }
@@ -666,22 +666,23 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     fun submitDeliveryPartnerOnboarding(
         phone: String,
         name: String,
-        vehicleType: String,
-        licenseNumber: String,
-        onComplete: (Boolean) -> Unit
+        city: String = "New Delhi",
+        vehicleType: String = "Motorcycle",
+        licenseNumber: String = "",
+        onComplete: (Boolean, String) -> Unit
     ) {
         viewModelScope.launch(Dispatchers.IO) {
-            val success = repository.registerWorker(phone, name)
+            val (success, message) = repository.registerWorkerDetailed(phone, name, city, vehicleType, licenseNumber)
             if (success) {
                 deliveryApplicationStatus.value = "APPROVED"
                 withContext(Dispatchers.Main) {
-                    showCustomAlert("Delivery Partner Registration submitted! 🛵")
-                    onComplete(true)
+                    showCustomAlert(message)
+                    onComplete(true, message)
                 }
             } else {
                 withContext(Dispatchers.Main) {
-                    showCustomAlert("Failed to submit delivery application", isError = true)
-                    onComplete(false)
+                    showCustomAlert(message, isError = true)
+                    onComplete(false, message)
                 }
             }
         }

@@ -236,6 +236,16 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
     var dVehicleRegNo by remember { mutableStateOf("") }
     var isSubmittingDelivery by remember { mutableStateOf(false) }
 
+    // Onboarding Feedback Dialog States
+    var showOnboardingFeedbackDialog by remember { mutableStateOf(false) }
+    var onboardingFeedbackSuccess by remember { mutableStateOf(true) }
+    var onboardingFeedbackTitle by remember { mutableStateOf("") }
+    var onboardingFeedbackMessage by remember { mutableStateOf("") }
+    var onboardingFeedbackType by remember { mutableStateOf("vendor") }
+
+    val vendorStatusFlow by vm.vendorApplicationStatus.collectAsState()
+    val deliveryStatusFlow by vm.deliveryApplicationStatus.collectAsState()
+
     // Image Picker Launcher
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -2069,11 +2079,13 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                                             address = "$vStoreAddress, $vStoreCity",
                                             logoText = vStoreName.take(2).uppercase(),
                                             bannerColor = "#FF6B00"
-                                        ) { success ->
+                                        ) { success, msg ->
                                             isSubmittingVendor = false
-                                            if (success) {
-                                                activeSubView = "menu"
-                                            }
+                                            onboardingFeedbackSuccess = success
+                                            onboardingFeedbackTitle = if (success) "Vendor Registration Approved! 🎉" else "Vendor Registration Status ⚠️"
+                                            onboardingFeedbackMessage = if (success) "Your laundry store '$vStoreName' has been registered and approved successfully on Apna Dhobi! You can now start managing laundry orders." else msg
+                                            onboardingFeedbackType = "vendor"
+                                            showOnboardingFeedbackDialog = true
                                         }
                                     },
                                     enabled = !isSubmittingVendor,
@@ -2172,13 +2184,16 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                                     vm.submitDeliveryPartnerOnboarding(
                                         phone = dPhone,
                                         name = dFullName,
+                                        city = dCity,
                                         vehicleType = dVehicleType,
                                         licenseNumber = dLicenseNo
-                                    ) { success ->
+                                    ) { success, msg ->
                                         isSubmittingDelivery = false
-                                        if (success) {
-                                            activeSubView = "menu"
-                                        }
+                                        onboardingFeedbackSuccess = success
+                                        onboardingFeedbackTitle = if (success) "Delivery Partner Approved! 🛵" else "Registration Status ⚠️"
+                                        onboardingFeedbackMessage = if (success) "Congratulations $dFullName! Your delivery partner account has been approved. You can now accept pickup and delivery tasks." else msg
+                                        onboardingFeedbackType = "delivery"
+                                        showOnboardingFeedbackDialog = true
                                     }
                                 } else {
                                     Toast.makeText(context, "Please enter Name & Phone!", Toast.LENGTH_SHORT).show()
@@ -2528,6 +2543,84 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
             },
             dismissButton = {
                 TextButton(onClick = { showAddressDialog = false }) { Text("Cancel", color = Color.Gray) }
+            }
+        )
+    }
+
+    // ==========================================
+    // DIALOG: ONBOARDING FEEDBACK / STATUS
+    // ==========================================
+    if (showOnboardingFeedbackDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showOnboardingFeedbackDialog = false
+                if (onboardingFeedbackSuccess) activeSubView = "menu"
+            },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (onboardingFeedbackSuccess) "🎉 " else "⚠️ ", fontSize = 20.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = onboardingFeedbackTitle,
+                        fontWeight = FontWeight.Bold,
+                        color = if (onboardingFeedbackSuccess) Color(0xFF15803D) else Color(0xFFC2410C),
+                        fontSize = 17.sp
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Surface(
+                        color = if (onboardingFeedbackSuccess) Color(0xFFDCFCE7) else Color(0xFFFEF3C7),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (onboardingFeedbackSuccess) "STATUS: ACTIVE / APPROVED ✅" else "STATUS: NOTICE / REVIEW ℹ️",
+                                color = if (onboardingFeedbackSuccess) Color(0xFF166534) else Color(0xFF92400E),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                    Text(
+                        text = onboardingFeedbackMessage,
+                        fontSize = 13.5.sp,
+                        color = Color(0xFF334155),
+                        lineHeight = 19.sp
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showOnboardingFeedbackDialog = false
+                        if (onboardingFeedbackSuccess) {
+                            if (onboardingFeedbackType == "vendor") {
+                                vm.navigateTo(ApnaDhobiScreen.VendorDashboard)
+                            } else {
+                                vm.navigateTo(ApnaDhobiScreen.DeliveryBoyDashboard)
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (onboardingFeedbackSuccess) Color(0xFF16A34A) else Color(0xFFFF6B00)
+                    )
+                ) {
+                    Text(if (onboardingFeedbackSuccess) "Open Dashboard 🚀" else "OK", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showOnboardingFeedbackDialog = false
+                    if (onboardingFeedbackSuccess) activeSubView = "menu"
+                }) {
+                    Text("Close", color = Color.Gray)
+                }
             }
         )
     }

@@ -467,6 +467,34 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
         }
     }
 
+    suspend fun registerVendorDetailed(name: String, description: String, address: String, logoText: String, bannerColor: String): Pair<Boolean, String> {
+        return try {
+            val body = mapOf(
+                "name" to name,
+                "description" to description,
+                "address" to address,
+                "logoText" to logoText,
+                "bannerColor" to bannerColor
+            )
+            val response = vendorsApi.register(body)
+            if (response.isSuccessful) {
+                val v = response.body()
+                Pair(true, "Vendor '${v?.name ?: name}' registered and approved successfully! 🎉")
+            } else {
+                val errorStr = response.errorBody()?.string() ?: "Server returned error ${response.code()}"
+                val cleanMsg = try {
+                    if (errorStr.contains("\"message\":")) {
+                        errorStr.substringAfter("\"message\":").substringBefore(",").replace("\"", "").replace("[", "").replace("]", "").replace("}", "").trim()
+                    } else errorStr
+                } catch (e: Exception) { errorStr }
+                Pair(false, cleanMsg)
+            }
+        } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "registerVendorDetailed error: ${e.message}", e)
+            Pair(false, e.message ?: "Network error connecting to backend server")
+        }
+    }
+
     suspend fun toggleVendorStatus(vendorId: String, isOpen: Boolean): Boolean {
         return try {
             val body = mapOf("isOpen" to isOpen)
@@ -591,6 +619,33 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
             staffApi.registerWorker(mapOf("phone" to phone, "name" to name)).isSuccessful
         } catch (e: Exception) {
             false
+        }
+    }
+
+    suspend fun registerWorkerDetailed(phone: String, name: String, city: String = "", vehicleType: String = "", licenseNumber: String = ""): Pair<Boolean, String> {
+        return try {
+            val body = mutableMapOf(
+                "phone" to phone,
+                "name" to name
+            )
+            if (city.isNotBlank()) body["city"] = city
+            if (vehicleType.isNotBlank()) body["vehicleType"] = vehicleType
+            if (licenseNumber.isNotBlank()) body["licenseNumber"] = licenseNumber
+            val response = staffApi.registerWorker(body)
+            if (response.isSuccessful) {
+                Pair(true, "Delivery Partner registered and approved successfully! 🛵")
+            } else {
+                val errorStr = response.errorBody()?.string() ?: "Server returned error ${response.code()}"
+                val cleanMsg = try {
+                    if (errorStr.contains("\"message\":")) {
+                        errorStr.substringAfter("\"message\":").substringBefore(",").replace("\"", "").replace("[", "").replace("]", "").replace("}", "").trim()
+                    } else errorStr
+                } catch (e: Exception) { errorStr }
+                Pair(false, cleanMsg)
+            }
+        } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "registerWorkerDetailed error: ${e.message}", e)
+            Pair(false, e.message ?: "Network error connecting to backend server")
         }
     }
 
