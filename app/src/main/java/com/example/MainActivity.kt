@@ -133,6 +133,7 @@ class MainActivity : ComponentActivity() {
 // REVERSE GEOCODING & LOCATION SEARCH HELPERS
 // ==========================================
 suspend fun fetchAddressFromCoordinates(context: Context, lat: Double, lon: Double): String = withContext(Dispatchers.IO) {
+    if (lat == 0.0 && lon == 0.0) return@withContext "Detecting location..."
     try {
         @Suppress("DEPRECATION")
         val geocoder = Geocoder(context, Locale.getDefault())
@@ -141,7 +142,7 @@ suspend fun fetchAddressFromCoordinates(context: Context, lat: Double, lon: Doub
             val addr = addresses[0]
             val line = addr.getAddressLine(0)
             if (!line.isNullOrBlank()) return@withContext line
-            val fallback = listOfNotNull(addr.featureName, addr.subLocality, addr.locality, addr.postalCode).joinToString(", ")
+            val fallback = listOfNotNull(addr.featureName, addr.subLocality, addr.locality, addr.adminArea, addr.postalCode).joinToString(", ")
             if (fallback.isNotBlank()) return@withContext fallback
         }
     } catch (e: Exception) {
@@ -152,9 +153,9 @@ suspend fun fetchAddressFromCoordinates(context: Context, lat: Double, lon: Doub
         val url = URL("https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=18&addressdetails=1")
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "GET"
-        conn.setRequestProperty("User-Agent", "ApnaDhobiAndroidApp/1.0")
-        conn.connectTimeout = 4000
-        conn.readTimeout = 4000
+        conn.setRequestProperty("User-Agent", "ApnaDhobiAndroidApp/2.0")
+        conn.connectTimeout = 3500
+        conn.readTimeout = 3500
         if (conn.responseCode == 200) {
             val json = conn.inputStream.bufferedReader().readText()
             val jsonObj = JSONObject(json)
@@ -165,7 +166,7 @@ suspend fun fetchAddressFromCoordinates(context: Context, lat: Double, lon: Doub
         e.printStackTrace()
     }
 
-    "Connaught Place, New Delhi, Delhi 110001"
+    "Location: ${String.format(Locale.US, "%.4f", lat)}°N, ${String.format(Locale.US, "%.4f", lon)}°E"
 }
 
 suspend fun searchLocationsFromQuery(context: Context, query: String): List<Triple<String, Double, Double>> = withContext(Dispatchers.IO) {
@@ -3432,6 +3433,8 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
         handleSaveAndProceed()
     }
 
+    var hasInitialGpsLockDone by remember { mutableStateOf(false) }
+
     val currentPosition = LatLng(customerLat, customerLng)
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(currentPosition, 17f)
@@ -3446,11 +3449,14 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
         val coarseGranted = permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (fineGranted || coarseGranted) {
             isDetecting = true
+            addressDetailText = "📡 Detecting your current live location..."
             vm.fetchRealGpsLocation(context) { lat, lng, addr ->
                 isDetecting = false
+                hasInitialGpsLockDone = true
                 addressDetailText = addr
+                markerState.position = LatLng(lat, lng)
                 coroutineScope.launch {
-                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17f))
+                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17.5f))
                 }
             }
         } else {
@@ -3458,18 +3464,28 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
         }
     }
 
+    val hasLocationPermission = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED ||
+            androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
     // Trigger real hardware GPS fetch immediately on launch
     LaunchedEffect(Unit) {
-        val hasFine = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        val hasCoarse = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val locManager = context.getSystemService(Context.LOCATION_SERVICE) as? android.location.LocationManager
+        val isGpsEnabled = locManager?.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) == true ||
+                locManager?.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER) == true
+        if (!isGpsEnabled) {
+            Toast.makeText(context, "Please turn on Device GPS / Location for accurate pickup detection", Toast.LENGTH_LONG).show()
+        }
 
-        if (hasFine || hasCoarse) {
+        if (hasLocationPermission) {
             isDetecting = true
+            addressDetailText = "📡 Detecting your current live location..."
             vm.fetchRealGpsLocation(context) { lat, lng, addr ->
                 isDetecting = false
+                hasInitialGpsLockDone = true
                 addressDetailText = addr
+                markerState.position = LatLng(lat, lng)
                 coroutineScope.launch {
-                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17f))
+                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17.5f))
                 }
             }
         } else {
@@ -3496,9 +3512,9 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
         }
     }
 
-    // Update marker and address when camera stops moving
+    // Update marker and address ONLY when user manually drags/moves map AFTER initial GPS lock
     LaunchedEffect(cameraPositionState.isMoving) {
-        if (!cameraPositionState.isMoving) {
+        if (!cameraPositionState.isMoving && hasInitialGpsLockDone && !isDetecting) {
             val target = cameraPositionState.position.target
             markerState.position = target
             vm.customerLat.value = target.latitude
@@ -3513,8 +3529,14 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
             cameraPositionState = cameraPositionState,
-            properties = MapProperties(isMyLocationEnabled = false),
-            uiSettings = MapUiSettings(zoomControlsEnabled = false)
+            properties = MapProperties(
+                isMyLocationEnabled = hasLocationPermission,
+                isBuildingEnabled = true
+            ),
+            uiSettings = MapUiSettings(
+                zoomControlsEnabled = false,
+                compassEnabled = true
+            )
         ) {
             Marker(
                 state = markerState,
@@ -3596,11 +3618,14 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                                     searchQuery = ""
                                     keyboardController?.hide()
                                     isDetecting = true
+                                    addressDetailText = "📡 Detecting your current live location..."
                                     vm.fetchRealGpsLocation(context) { lat, lng, addr ->
                                         isDetecting = false
+                                        hasInitialGpsLockDone = true
                                         addressDetailText = addr
+                                        markerState.position = LatLng(lat, lng)
                                         coroutineScope.launch {
-                                            cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17f))
+                                            cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17.5f))
                                         }
                                     }
                                 }
@@ -3682,12 +3707,15 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                 val hasFine = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
                 val hasCoarse = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
                 if (hasFine || hasCoarse) {
+                    addressDetailText = "📡 Detecting your current live location..."
                     vm.fetchRealGpsLocation(context) { lat, lng, addr ->
                         isDetecting = false
+                        hasInitialGpsLockDone = true
                         addressDetailText = addr
+                        markerState.position = LatLng(lat, lng)
                         coroutineScope.launch {
                             cameraPositionState.animate(
-                                CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17f)
+                                CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17.5f)
                             )
                         }
                     }

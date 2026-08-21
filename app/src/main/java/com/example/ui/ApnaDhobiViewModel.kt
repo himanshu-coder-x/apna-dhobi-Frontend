@@ -1423,81 +1423,110 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
             val hasFine = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
             val hasCoarse = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
             
-            if (hasFine || hasCoarse) {
-                try {
-                    fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
-                        .addOnSuccessListener { loc ->
-                            if (loc != null) {
-                                val lat = loc.latitude
-                                val lng = loc.longitude
-                                customerLat.value = lat
-                                customerLng.value = lng
-                                viewModelScope.launch {
-                                    val addr = com.example.fetchAddressFromCoordinates(context, lat, lng)
-                                    currentFullAddress.value = addr
-                                    onComplete(lat, lng, addr)
-                                }
-                            } else {
-                                fusedLocationClient.lastLocation.addOnSuccessListener { lastLoc ->
-                                    if (lastLoc != null) {
-                                        val lat = lastLoc.latitude
-                                        val lng = lastLoc.longitude
-                                        customerLat.value = lat
-                                        customerLng.value = lng
-                                        viewModelScope.launch {
-                                            val addr = com.example.fetchAddressFromCoordinates(context, lat, lng)
-                                            currentFullAddress.value = addr
-                                            onComplete(lat, lng, addr)
-                                        }
-                                    } else {
-                                        viewModelScope.launch {
-                                            val addr = com.example.fetchAddressFromCoordinates(context, customerLat.value, customerLng.value)
-                                            onComplete(customerLat.value, customerLng.value, addr)
-                                        }
-                                    }
-                                }.addOnFailureListener {
-                                    viewModelScope.launch {
-                                        val addr = com.example.fetchAddressFromCoordinates(context, customerLat.value, customerLng.value)
-                                        onComplete(customerLat.value, customerLng.value, addr)
-                                    }
-                                }
-                            }
-                        }
-                        .addOnFailureListener {
-                            fusedLocationClient.lastLocation.addOnSuccessListener { lastLoc ->
-                                if (lastLoc != null) {
-                                    val lat = lastLoc.latitude
-                                    val lng = lastLoc.longitude
-                                    customerLat.value = lat
-                                    customerLng.value = lng
-                                    viewModelScope.launch {
-                                        val addr = com.example.fetchAddressFromCoordinates(context, lat, lng)
-                                        currentFullAddress.value = addr
-                                        onComplete(lat, lng, addr)
-                                    }
-                                } else {
-                                    viewModelScope.launch {
-                                        val addr = com.example.fetchAddressFromCoordinates(context, customerLat.value, customerLng.value)
-                                        onComplete(customerLat.value, customerLng.value, addr)
-                                    }
-                                }
-                            }.addOnFailureListener {
-                                viewModelScope.launch {
-                                    val addr = com.example.fetchAddressFromCoordinates(context, customerLat.value, customerLng.value)
-                                    onComplete(customerLat.value, customerLng.value, addr)
-                                }
-                            }
-                        }
-                } catch (e: SecurityException) {
-                    val addr = com.example.fetchAddressFromCoordinates(context, customerLat.value, customerLng.value)
-                    onComplete(customerLat.value, customerLng.value, addr)
-                } catch (e: Exception) {
+            if (!hasFine && !hasCoarse) {
+                viewModelScope.launch {
                     val addr = com.example.fetchAddressFromCoordinates(context, customerLat.value, customerLng.value)
                     onComplete(customerLat.value, customerLng.value, addr)
                 }
-            } else {
-                val addr = com.example.fetchAddressFromCoordinates(context, customerLat.value, customerLng.value)
-                onComplete(customerLat.value, customerLng.value, addr)
+                return@launch
+            }
+
+            var locationAcquired = false
+
+            // Strategy 1: Check System LocationManager for immediate hardware GPS / Network fix
+            try {
+                val locManager = context.getSystemService(android.content.Context.LOCATION_SERVICE) as? android.location.LocationManager
+                if (locManager != null) {
+                    val gpsLoc = try { locManager.getLastKnownLocation(android.location.LocationManager.GPS_PROVIDER) } catch (e: SecurityException) { null }
+                    val netLoc = try { locManager.getLastKnownLocation(android.location.LocationManager.NETWORK_PROVIDER) } catch (e: SecurityException) { null }
+                    val passiveLoc = try { locManager.getLastKnownLocation(android.location.LocationManager.PASSIVE_PROVIDER) } catch (e: SecurityException) { null }
+
+                    val candidate = listOfNotNull(gpsLoc, netLoc, passiveLoc).maxByOrNull { it.time }
+                    if (candidate != null) {
+                        val lat = candidate.latitude
+                        val lng = candidate.longitude
+                        customerLat.value = lat
+                        customerLng.value = lng
+                        locationAcquired = true
+                        viewModelScope.launch {
+                            val addr = com.example.fetchAddressFromCoordinates(context, lat, lng)
+                            currentFullAddress.value = addr
+                            onComplete(lat, lng, addr)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+
+            // Strategy 2: Check FusedLocationProviderClient.lastLocation
+            try {
+                fusedLocationClient.lastLocation.addOnSuccessListener { lastLoc ->
+                    if (lastLoc != null && !locationAcquired) {
+                        val lat = lastLoc.latitude
+                        val lng = lastLoc.longitude
+                        customerLat.value = lat
+                        customerLng.value = lng
+                        locationAcquired = true
+                        viewModelScope.launch {
+                            val addr = com.example.fetchAddressFromCoordinates(context, lat, lng)
+                            currentFullAddress.value = addr
+                            onComplete(lat, lng, addr)
+                        }
+                    }
+                }
+            } catch (e: SecurityException) {
+                e.printStackTrace()
+            }
+
+            // Strategy 3: Request Fresh Real-Time High Accuracy Location Update from GPS Satellite Chipset
+            try {
+                val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 500)
+                    .setMinUpdateIntervalMillis(250)
+                    .setMaxUpdates(1)
+                    .setDurationMillis(10000)
+                    .build()
+
+                val singleUpdateCallback = object : LocationCallback() {
+                    override fun onLocationResult(result: LocationResult) {
+                        val freshLoc = result.lastLocation ?: return
+                        val lat = freshLoc.latitude
+                        val lng = freshLoc.longitude
+                        customerLat.value = lat
+                        customerLng.value = lng
+                        viewModelScope.launch {
+                            val addr = com.example.fetchAddressFromCoordinates(context, lat, lng)
+                            currentFullAddress.value = addr
+                            onComplete(lat, lng, addr)
+                        }
+                        fusedLocationClient.removeLocationUpdates(this)
+                    }
+                }
+
+                fusedLocationClient.requestLocationUpdates(
+                    locationRequest,
+                    singleUpdateCallback,
+                    android.os.Looper.getMainLooper()
+                )
+
+                // Also trigger getCurrentLocation with CancellationToken
+                val cancellationSource = com.google.android.gms.tasks.CancellationTokenSource()
+                fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellationSource.token)
+                    .addOnSuccessListener { loc ->
+                        if (loc != null) {
+                            val lat = loc.latitude
+                            val lng = loc.longitude
+                            customerLat.value = lat
+                            customerLng.value = lng
+                            viewModelScope.launch {
+                                val addr = com.example.fetchAddressFromCoordinates(context, lat, lng)
+                                currentFullAddress.value = addr
+                                onComplete(lat, lng, addr)
+                            }
+                        }
+                    }
+            } catch (e: SecurityException) {
+                e.printStackTrace()
             }
         }
     }
