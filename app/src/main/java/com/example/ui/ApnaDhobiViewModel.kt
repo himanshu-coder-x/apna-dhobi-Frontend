@@ -692,6 +692,61 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    // Vendor & Delivery Enterprise States
+    val isVendorOnline = MutableStateFlow(true)
+    val isDeliveryPartnerOnline = MutableStateFlow(true)
+    val workerJobs = MutableStateFlow<List<OrderRecord>>(emptyList())
+    val isWorkerJobsLoading = MutableStateFlow(false)
+
+    fun refreshWorkerJobs() {
+        viewModelScope.launch(Dispatchers.IO) {
+            isWorkerJobsLoading.value = true
+            val jobs = repository.fetchWorkerTasks()
+            workerJobs.value = if (jobs.isNotEmpty()) jobs else ordersList.value
+            isWorkerJobsLoading.value = false
+        }
+    }
+
+    fun acceptDeliveryRun(orderId: String, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val success = repository.acceptDeliveryJob(orderId)
+            refreshOrders()
+            refreshWorkerJobs()
+            withContext(Dispatchers.Main) {
+                showCustomAlert("Delivery Run Accepted! 🛵")
+                onComplete(true)
+            }
+        }
+    }
+
+    fun completeDeliveryWithOtp(orderId: String, otp: Int, onComplete: (Boolean, String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val (success, msg) = repository.verifyDeliveryOtp(orderId, otp)
+            refreshOrders()
+            refreshWorkerJobs()
+            withContext(Dispatchers.Main) {
+                if (success) {
+                    showCustomAlert(msg)
+                    onComplete(true, msg)
+                } else {
+                    showCustomAlert(msg, isError = true)
+                    onComplete(false, msg)
+                }
+            }
+        }
+    }
+
+    fun updateOrderInspection(orderId: String, weightKg: Double, itemCount: Int, bagId: String, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val success = repository.updateOrderGarmentInspection(orderId, weightKg, itemCount, bagId)
+            refreshOrders()
+            withContext(Dispatchers.Main) {
+                showCustomAlert("Garment inspection details saved! 👔")
+                onComplete(true)
+            }
+        }
+    }
+
     // SMTP & POP Configuration States
     val smtpHost = MutableStateFlow("smtp.gmail.com")
     val smtpPort = MutableStateFlow("465")

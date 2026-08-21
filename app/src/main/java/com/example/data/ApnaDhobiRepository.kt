@@ -606,6 +606,68 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
         }
     }
 
+    suspend fun updateOrderGarmentInspection(orderId: String, weightKg: Double, itemCount: Int, bagId: String): Boolean {
+        return try {
+            val body = mapOf(
+                "weightKg" to weightKg,
+                "verifiedItemCount" to itemCount,
+                "bagId" to bagId
+            )
+            ordersApi.updateOrderDetails(orderId, body).isSuccessful
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun fetchWorkerTasks(): List<OrderRecord> {
+        return try {
+            val response = ordersApi.getWorkerTasks()
+            if (response.isSuccessful) {
+                response.body()?.map { dto ->
+                    OrderRecord(
+                        id = dto.id.hashCode(),
+                        vendorName = "Laundry Store",
+                        itemsSummary = dto.itemsSummary,
+                        totalPrice = dto.totalPrice,
+                        pickupSlot = dto.pickupSlot,
+                        deliverySlot = dto.deliverySlot,
+                        paymentMethod = dto.paymentMethod,
+                        status = dto.status
+                    )
+                } ?: emptyList()
+            } else emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    suspend fun acceptDeliveryJob(orderId: String): Boolean {
+        return try {
+            ordersApi.acceptJob(orderId).isSuccessful
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    suspend fun verifyDeliveryOtp(orderId: String, otp: Int): Pair<Boolean, String> {
+        return try {
+            val response = ordersApi.verifyDeliveryOtp(orderId, mapOf("otp" to otp))
+            if (response.isSuccessful) {
+                Pair(true, "Delivery OTP verified! Order completed. 🎉")
+            } else {
+                val errorStr = response.errorBody()?.string() ?: "Invalid OTP"
+                val cleanMsg = try {
+                    if (errorStr.contains("\"message\":")) {
+                        errorStr.substringAfter("\"message\":").substringBefore(",").replace("\"", "").replace("[", "").replace("]", "").replace("}", "").trim()
+                    } else errorStr
+                } catch (e: Exception) { errorStr }
+                Pair(false, cleanMsg)
+            }
+        } catch (e: Exception) {
+            Pair(false, e.message ?: "Failed to verify OTP")
+        }
+    }
+
     suspend fun findOrderByQr(qrCode: String): OrderDto? {
         return try {
             val response = ordersApi.findByQr(qrCode)

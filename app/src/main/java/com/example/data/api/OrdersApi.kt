@@ -27,6 +27,15 @@ interface OrdersApi {
 
     @GET("orders/qr/{qrCode}")
     suspend fun findByQr(@Path("qrCode") qrCode: String): Response<OrderDto>
+
+    @GET("orders/worker/tasks")
+    suspend fun getWorkerTasks(): Response<List<OrderDto>>
+
+    @POST("orders/{id}/accept-job")
+    suspend fun acceptJob(@Path("id") id: String): Response<Map<String, Any>>
+
+    @POST("orders/{id}/verify-otp")
+    suspend fun verifyDeliveryOtp(@Path("id") id: String, @Body body: Map<String, Any>): Response<Map<String, Any>>
 }
 
 data class CreateOrderRequest(

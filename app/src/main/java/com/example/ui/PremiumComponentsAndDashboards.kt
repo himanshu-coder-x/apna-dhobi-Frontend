@@ -224,6 +224,13 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
     var vOwnerName by remember { mutableStateOf(name) }
     var vOwnerPhone by remember { mutableStateOf(mobile) }
     var vOwnerGst by remember { mutableStateOf("") }
+    var vBankAcc by remember { mutableStateOf("") }
+    var vBankIfsc by remember { mutableStateOf("") }
+    var vBankHolder by remember { mutableStateOf("") }
+    var vUpiId by remember { mutableStateOf("") }
+    var vAadhaarUploaded by remember { mutableStateOf(false) }
+    var vPanUploaded by remember { mutableStateOf(false) }
+    var vStorePhotoUploaded by remember { mutableStateOf(false) }
     var isSubmittingVendor by remember { mutableStateOf(false) }
 
     // Delivery Partner Onboarding States
@@ -234,7 +241,20 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
     var dVehicleType by remember { mutableStateOf("Motorcycle / Scooter") }
     var dLicenseNo by remember { mutableStateOf("") }
     var dVehicleRegNo by remember { mutableStateOf("") }
+    var dBankAcc by remember { mutableStateOf("") }
+    var dBankIfsc by remember { mutableStateOf("") }
+    var dUpiId by remember { mutableStateOf("") }
+    var dLicenseUploaded by remember { mutableStateOf(false) }
+    var dAadhaarUploaded by remember { mutableStateOf(false) }
     var isSubmittingDelivery by remember { mutableStateOf(false) }
+
+    // Role Gateway States
+    var showVendorGatewayDialog by remember { mutableStateOf(false) }
+    var showDeliveryGatewayDialog by remember { mutableStateOf(false) }
+    var showPartnerSignInDialog by remember { mutableStateOf(false) }
+    var partnerSignInRole by remember { mutableStateOf("vendor") } // "vendor" or "delivery"
+    var partnerSignInPhone by remember { mutableStateOf(mobile) }
+    var partnerSignInOtp by remember { mutableStateOf("") }
 
     // Onboarding Feedback Dialog States
     var showOnboardingFeedbackDialog by remember { mutableStateOf(false) }
@@ -695,7 +715,7 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                         }
                     }
 
-                    // Card 3: Become a Vendor (Matching Image 2)
+                    // Card 3: Become a Vendor (Matching Image 2 + Enterprise Gateway)
                     item {
                         Surface(
                             color = Color(0xFFFFF7ED),
@@ -724,19 +744,39 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                                     }
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column {
-                                        Text("Become a Vendor", fontWeight = FontWeight.Bold, fontSize = 14.5.sp, color = Color(0xFFC2410C))
-                                        Text("Grow your laundry business with us", fontSize = 11.5.sp, color = Color(0xFF64748B))
+                                        Text(
+                                            if (vendorStatusFlow == "APPROVED") "Laundry Vendor Station 🚀" else "Become a Vendor",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.5.sp,
+                                            color = Color(0xFFC2410C)
+                                        )
+                                        Text(
+                                            if (vendorStatusFlow == "APPROVED") "Manage orders, services & earnings" else "Grow your laundry business with us",
+                                            fontSize = 11.5.sp,
+                                            color = Color(0xFF64748B)
+                                        )
                                     }
                                 }
 
                                 Button(
-                                    onClick = { activeSubView = "vendor_onboarding" },
+                                    onClick = {
+                                        if (vendorStatusFlow == "APPROVED") {
+                                            vm.navigateTo(ApnaDhobiScreen.VendorDashboard)
+                                        } else {
+                                            showVendorGatewayDialog = true
+                                        }
+                                    },
                                     shape = RoundedCornerShape(10.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B00)),
                                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("Register Now", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        Text(
+                                            if (vendorStatusFlow == "APPROVED") "Dashboard" else "Join Now",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp
+                                        )
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
                                     }
@@ -745,7 +785,7 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                         }
                     }
 
-                    // Card 4: Become a Delivery Partner (Matching Image 2)
+                    // Card 4: Become a Delivery Partner (Matching Image 2 + Enterprise Gateway)
                     item {
                         Surface(
                             color = Color(0xFFEFF6FF),
@@ -774,19 +814,39 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                                     }
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column {
-                                        Text("Become a Delivery Partner", fontWeight = FontWeight.Bold, fontSize = 14.5.sp, color = Color(0xFF1E40AF))
-                                        Text("Earn with flexible delivery jobs", fontSize = 11.5.sp, color = Color(0xFF64748B))
+                                        Text(
+                                            if (deliveryStatusFlow == "APPROVED") "Delivery Partner Workspace 🛵" else "Become a Delivery Partner",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.5.sp,
+                                            color = Color(0xFF1E40AF)
+                                        )
+                                        Text(
+                                            if (deliveryStatusFlow == "APPROVED") "View active runs, GPS & payouts" else "Earn with flexible delivery jobs",
+                                            fontSize = 11.5.sp,
+                                            color = Color(0xFF64748B)
+                                        )
                                     }
                                 }
 
                                 Button(
-                                    onClick = { activeSubView = "delivery_onboarding" },
+                                    onClick = {
+                                        if (deliveryStatusFlow == "APPROVED") {
+                                            vm.navigateTo(ApnaDhobiScreen.DeliveryBoyDashboard)
+                                        } else {
+                                            showDeliveryGatewayDialog = true
+                                        }
+                                    },
                                     shape = RoundedCornerShape(10.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F47A6)),
                                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                                 ) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("Register Now", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        Text(
+                                            if (deliveryStatusFlow == "APPROVED") "Workspace" else "Join Now",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp
+                                        )
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
                                     }
@@ -2623,6 +2683,209 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                 }) {
                     Text("Close", color = Color.Gray)
                 }
+            }
+        )
+    }
+
+    // ==========================================
+    // DIALOG: VENDOR ROLE ENTRY GATEWAY
+    // ==========================================
+    if (showVendorGatewayDialog) {
+        AlertDialog(
+            onDismissRequest = { showVendorGatewayDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🏪", fontSize = 22.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Laundry Vendor Gateway", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 17.sp)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Choose how you would like to proceed with your laundry business account:", fontSize = 13.sp, color = Color(0xFF475569))
+
+                    // Option A: Register
+                    Surface(
+                        color = Color(0xFFFFF7ED),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFFFFEDD5)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showVendorGatewayDialog = false
+                                activeSubView = "vendor_onboarding"
+                            }
+                    ) {
+                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("✨", fontSize = 20.sp)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("New Partner? Create Account", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFFC2410C))
+                                Text("Multi-step KYC & store registration", fontSize = 11.sp, color = Color(0xFF64748B))
+                            }
+                        }
+                    }
+
+                    // Option B: Sign In
+                    Surface(
+                        color = Color(0xFFEFF6FF),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFFDBEAFE)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showVendorGatewayDialog = false
+                                partnerSignInRole = "vendor"
+                                showPartnerSignInDialog = true
+                            }
+                    ) {
+                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("🔑", fontSize = 20.sp)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Already Registered? Sign In", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF1D4ED8))
+                                Text("Quick OTP login to Vendor Dashboard", fontSize = 11.sp, color = Color(0xFF64748B))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showVendorGatewayDialog = false }) { Text("Cancel", color = Color.Gray) }
+            }
+        )
+    }
+
+    // ==========================================
+    // DIALOG: DELIVERY ROLE ENTRY GATEWAY
+    // ==========================================
+    if (showDeliveryGatewayDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeliveryGatewayDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🛵", fontSize = 22.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Delivery Partner Gateway", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 17.sp)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Choose how you would like to access your delivery fleet account:", fontSize = 13.sp, color = Color(0xFF475569))
+
+                    // Option A: Register
+                    Surface(
+                        color = Color(0xFFEFF6FF),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFFDBEAFE)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showDeliveryGatewayDialog = false
+                                activeSubView = "delivery_onboarding"
+                            }
+                    ) {
+                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("🚀", fontSize = 20.sp)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Join Fleet: Create Account", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF1D4ED8))
+                                Text("Weekly payouts, vehicle registration & KYC", fontSize = 11.sp, color = Color(0xFF64748B))
+                            }
+                        }
+                    }
+
+                    // Option B: Sign In
+                    Surface(
+                        color = Color(0xFFF0FDF4),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFFDCFCE7)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showDeliveryGatewayDialog = false
+                                partnerSignInRole = "delivery"
+                                showPartnerSignInDialog = true
+                            }
+                    ) {
+                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("🔑", fontSize = 20.sp)
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Already a Partner? Sign In", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFF15803D))
+                                Text("Quick OTP login to Driver Workspace", fontSize = 11.sp, color = Color(0xFF64748B))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showDeliveryGatewayDialog = false }) { Text("Cancel", color = Color.Gray) }
+            }
+        )
+    }
+
+    // ==========================================
+    // DIALOG: PARTNER OTP SIGN IN
+    // ==========================================
+    if (showPartnerSignInDialog) {
+        AlertDialog(
+            onDismissRequest = { showPartnerSignInDialog = false },
+            title = {
+                Text(
+                    text = if (partnerSignInRole == "vendor") "Vendor Sign In 🏪" else "Delivery Partner Sign In 🛵",
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0F172A)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Enter your registered mobile number and verification OTP to access your dashboard.", fontSize = 12.sp, color = Color(0xFF64748B))
+                    OutlinedTextField(
+                        value = partnerSignInPhone,
+                        onValueChange = { partnerSignInPhone = it },
+                        label = { Text("Registered Mobile (+91)") },
+                        singleLine = true,
+                        colors = getLightBgTextFieldColors(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = partnerSignInOtp,
+                        onValueChange = { partnerSignInOtp = it },
+                        label = { Text("Enter OTP (e.g. 123456)") },
+                        singleLine = true,
+                        colors = getLightBgTextFieldColors(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (partnerSignInPhone.isNotBlank()) {
+                            showPartnerSignInDialog = false
+                            if (partnerSignInRole == "vendor") {
+                                vm.vendorApplicationStatus.value = "APPROVED"
+                                vm.navigateTo(ApnaDhobiScreen.VendorDashboard)
+                            } else {
+                                vm.deliveryApplicationStatus.value = "APPROVED"
+                                vm.navigateTo(ApnaDhobiScreen.DeliveryBoyDashboard)
+                            }
+                        } else {
+                            Toast.makeText(context, "Please enter mobile number!", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (partnerSignInRole == "vendor") Color(0xFFFF6B00) else Color(0xFF0F47A6)
+                    )
+                ) {
+                    Text("Verify & Open Workspace 🚀", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPartnerSignInDialog = false }) { Text("Cancel", color = Color.Gray) }
             }
         )
     }
@@ -6275,192 +6538,490 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
     val scope = rememberCoroutineScope()
     val orders by vm.ordersList.collectAsState()
     val fleetDrivers by vm.deliveryPartnersState.collectAsState()
+    val isOnline by vm.isDeliveryPartnerOnline.collectAsState()
+    val customerLat by vm.customerLat.collectAsState()
+    val customerLng by vm.customerLng.collectAsState()
 
+    var activeDriverTab by remember { mutableStateOf("runs") } // "runs", "active", "earnings", "fleet"
     var showOnboardDriverDialog by remember { mutableStateOf(false) }
+    var showOtpDialog by remember { mutableStateOf(false) }
+    var selectedOrderForOtp by remember { mutableStateOf<OrderRecord?>(null) }
+    var otpInput by remember { mutableStateOf("") }
+    var isVerifyingOtp by remember { mutableStateOf(false) }
+
     var newDriverName by remember { mutableStateOf("") }
     var newDriverPhone by remember { mutableStateOf("") }
     var newDriverVehicle by remember { mutableStateOf("Bike 🏍️") }
     var newDriverLicense by remember { mutableStateOf("") }
 
-    val pendingDeliveryItems = orders.filter { it.status != "Delivered" }
+    val pendingRuns = orders.filter { it.status != "Delivered" && it.status != "DELIVERED" }
+    val activeRun = orders.find { it.status == "OUT_FOR_DELIVERY" || it.status == "Out for Delivery" || it.status == "PICKUP_ASSIGNED" || it.status == "PICKED_UP" }
+    val completedRuns = orders.filter { it.status == "Delivered" || it.status == "DELIVERED" }
+    val todayEarnings = (completedRuns.size * 65.0) + (if (isOnline) 50.0 else 0.0)
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(LightCream)
     ) {
-        // Toolbar header
+        // Toolbar header with Online/Offline Switch
         Card(
             colors = CardDefaults.cardColors(containerColor = RoyalBlue),
             shape = RoundedCornerShape(bottomStart = 20.dp, bottomEnd = 20.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { vm.navigateBack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { vm.navigateBack() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Column {
+                            Text("Delivery Partner Workspace 🛵", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.5.sp)
+                            Text("Active Fleet Driver Node • Delhi NCR", color = LightCream, fontSize = 11.sp)
+                        }
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text("Logistics & Delivery Fleet App 🚚", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp)
-                        Text("Active fleet drivers & assigned laundry runs", color = LightCream, fontSize = 11.sp)
+
+                    // Online / Offline Switch
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = if (isOnline) "ONLINE" else "OFFLINE",
+                            color = if (isOnline) Color(0xFF4ADE80) else Color(0xFFCBD5E1),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Switch(
+                            checked = isOnline,
+                            onCheckedChange = {
+                                vm.isDeliveryPartnerOnline.value = it
+                                val statusText = if (it) "You are now ONLINE! Ready to receive delivery runs. 🛵" else "You are now OFFLINE. No new runs assigned."
+                                vm.showCustomAlert(statusText)
+                                Toast.makeText(context, statusText, Toast.LENGTH_SHORT).show()
+                            }
+                        )
                     }
                 }
 
-                Button(
-                    onClick = { showOnboardDriverDialog = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // GPS Telemetry Banner
+                Surface(
+                    color = Color(0xFF1E3A8A),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("+ Add Driver", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(if (isOnline) Color(0xFF22C55E) else Color(0xFFEF4444), CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isOnline) "GPS Stream: Live (28.6139° N, 77.2090° E)" else "GPS Stream: Paused",
+                                color = Color.White,
+                                fontSize = 10.5.sp
+                            )
+                        }
+                        Text(
+                            text = "⭐ 4.9 (142 Trips)",
+                            color = Color(0xFFFBBF24),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Active Fleet Drivers Section
-        Text(
-            text = "Active Logistics Fleet Drivers (${fleetDrivers.size}):",
-            fontWeight = FontWeight.ExtraBold,
-            color = RoyalBlue,
-            modifier = Modifier.padding(horizontal = 16.dp),
-            fontSize = 13.sp
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        // Sub Navigation TabRow
+        TabRow(
+            selectedTabIndex = when (activeDriverTab) {
+                "runs" -> 0
+                "active" -> 1
+                "earnings" -> 2
+                else -> 3
+            },
+            containerColor = Color.White,
+            contentColor = RoyalBlue
         ) {
-            fleetDrivers.take(3).forEach { driver ->
-                Card(
-                    modifier = Modifier.weight(1f),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
-                        Text(driver.name, fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, color = RoyalBlue)
-                        Text(driver.vehicleType, fontSize = 10.sp, color = Color.Gray)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Surface(color = GreenSuccess.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) {
-                            Text(driver.status, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = GreenSuccess, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
-                        }
-                    }
-                }
+            Tab(selected = activeDriverTab == "runs", onClick = { activeDriverTab = "runs" }) {
+                Text("RUNS (${pendingRuns.size})", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            }
+            Tab(selected = activeDriverTab == "active", onClick = { activeDriverTab = "active" }) {
+                Text("ACTIVE (${if (activeRun != null) 1 else 0})", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            }
+            Tab(selected = activeDriverTab == "earnings", onClick = { activeDriverTab = "earnings" }) {
+                Text("EARNINGS", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            }
+            Tab(selected = activeDriverTab == "fleet", onClick = { activeDriverTab = "fleet" }) {
+                Text("FLEET", modifier = Modifier.padding(12.dp), fontWeight = FontWeight.Bold, fontSize = 11.sp)
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        Text(
-            text = "Assigned Delivery Runs (${pendingDeliveryItems.size}):",
-            fontWeight = FontWeight.ExtraBold,
-            color = RoyalBlue,
-            modifier = Modifier.padding(horizontal = 16.dp),
-            fontSize = 13.sp
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        LazyColumn(
-            modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            if (pendingDeliveryItems.isEmpty()) {
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        modifier = Modifier.fillMaxWidth().padding(top = 20.dp)
-                    ) {
-                        Box(modifier = Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) {
-                            Text("All runs completed! No pending pickups. 📦", fontWeight = FontWeight.Bold, color = Color.Gray)
+        // Content Area Switcher
+        when (activeDriverTab) {
+            "runs" -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp)
+                ) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Available & Assigned Jobs (${pendingRuns.size})", fontWeight = FontWeight.Bold, color = RoyalBlue, fontSize = 14.sp)
+                            TextButton(onClick = { vm.refreshOrders() }) {
+                                Text("Refresh 🔄", fontSize = 11.sp, color = RoyalBlue)
+                            }
                         }
                     }
-                }
-            } else {
-                items(pendingDeliveryItems) { ran ->
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+
+                    if (pendingRuns.isEmpty()) {
+                        item {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                modifier = Modifier.fillMaxWidth().padding(top = 20.dp)
                             ) {
-                                Text("Order ID: #${ran.id}", fontWeight = FontWeight.Bold, color = RoyalBlue)
-                                Surface(color = SaffronOrange.copy(alpha = 0.15f), shape = RoundedCornerShape(6.dp)) {
-                                    Text(ran.status.uppercase(), color = SaffronOrange, fontWeight = FontWeight.Black, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                Box(modifier = Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text("🛵", fontSize = 36.sp)
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text("All caught up! No pending delivery tasks.", fontWeight = FontWeight.Bold, color = Color(0xFF475569))
+                                        Text("Stay online to receive new customer pickups.", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                                    }
                                 }
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text("Wardrobe details: ${ran.itemsSummary}", fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                            Text("Pickup slot: ${ran.pickupSlot}", fontSize = 12.sp, color = Color.Gray)
-                            Text("Delivery target: ${ran.deliverySlot}", fontSize = 12.sp, color = Color.Gray)
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        }
+                    } else {
+                        items(pendingRuns) { order ->
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                                shape = RoundedCornerShape(14.dp)
                             ) {
-                                Button(
-                                    onClick = {
-                                        vm.updateOrderStatusDirectly(ran.id, "Out for Delivery")
-                                        Toast.makeText(context, "Order #${ran.id} is now Out for Delivery! Tracking active 🛵", Toast.LENGTH_SHORT).show()
-                                    },
-                                    modifier = Modifier.weight(1.1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
-                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Text("🛵 Set Out for Run", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
-                                }
-                                
-                                Button(
-                                    onClick = {
-                                        vm.updateOrderStatusDirectly(ran.id, "Delivered")
-                                        Toast.makeText(context, "Order #${ran.id} marked as Delivered! ✅", Toast.LENGTH_SHORT).show()
-                                    },
-                                    modifier = Modifier.weight(1f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = GreenSuccess),
-                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Text("📦 Mark Delivered", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
-                                }
-
-                                Button(
-                                    onClick = {
-                                        val destinationQuery = if (ran.vendorName.isNotBlank()) "${ran.vendorName}, New Delhi" else "Connaught Place, New Delhi"
-                                        val gmmIntentUri = android.net.Uri.parse("geo:0,0?q=" + android.net.Uri.encode(destinationQuery))
-                                        val mapIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, gmmIntentUri)
-                                        mapIntent.setPackage("com.google.android.apps.maps")
-                                        try {
-                                            context.startActivity(mapIntent)
-                                        } catch (e: Exception) {
-                                            val browserIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://www.google.com/maps/search/?api=1&query=" + android.net.Uri.encode(destinationQuery)))
-                                            context.startActivity(browserIntent)
+                                Column(modifier = Modifier.padding(14.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Order #${order.id}", fontWeight = FontWeight.Black, color = RoyalBlue, fontSize = 14.sp)
+                                        Surface(
+                                            color = when (order.status) {
+                                                "OUT_FOR_DELIVERY", "Out for Delivery" -> Color(0xFFDCFCE7)
+                                                "PICKUP_ASSIGNED" -> Color(0xFFFEF3C7)
+                                                else -> Color(0xFFEFF6FF)
+                                            },
+                                            shape = RoundedCornerShape(6.dp)
+                                        ) {
+                                            Text(
+                                                text = order.status.replace("_", " ").uppercase(),
+                                                color = when (order.status) {
+                                                    "OUT_FOR_DELIVERY", "Out for Delivery" -> Color(0xFF15803D)
+                                                    "PICKUP_ASSIGNED" -> Color(0xFFB45309)
+                                                    else -> Color(0xFF1D4ED8)
+                                                },
+                                                fontWeight = FontWeight.Black,
+                                                fontSize = 10.sp,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                            )
                                         }
-                                    },
-                                    modifier = Modifier.weight(0.9f),
-                                    colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
-                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Icon(Icons.Default.Map, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
-                                    Spacer(modifier = Modifier.width(2.dp))
-                                    Text("Navigate", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
+                                    }
+
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text("Items: ${order.itemsSummary}", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF1E293B))
+                                    Text("Pickup Slot: ${order.pickupSlot}", fontSize = 12.sp, color = Color(0xFF64748B))
+                                    Text("Delivery Slot: ${order.deliverySlot}", fontSize = 12.sp, color = Color(0xFF64748B))
+                                    Text("Payout: ₹65.00 (Doorstep Run)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF16A34A))
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        // Advance Run Step Button
+                                        Button(
+                                            onClick = {
+                                                val nextStatus = when (order.status) {
+                                                    "PLACED", "Placed", "Order Placed", "ACCEPTED" -> "PICKUP_ASSIGNED"
+                                                    "PICKUP_ASSIGNED" -> "PICKED_UP"
+                                                    "PICKED_UP" -> "RECEIVED_AT_STORE"
+                                                    "READY_FOR_DELIVERY", "Packed" -> "OUT_FOR_DELIVERY"
+                                                    "OUT_FOR_DELIVERY", "Out for Delivery" -> {
+                                                        selectedOrderForOtp = order
+                                                        otpInput = ""
+                                                        showOtpDialog = true
+                                                        return@Button
+                                                    }
+                                                    else -> "DELIVERED"
+                                                }
+                                                vm.updateOrderStatusDirectly(order.id, nextStatus)
+                                                Toast.makeText(context, "Order #${order.id} status updated to: $nextStatus! 🛵", Toast.LENGTH_SHORT).show()
+                                            },
+                                            modifier = Modifier.weight(1.3f),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = if (order.status == "OUT_FOR_DELIVERY" || order.status == "Out for Delivery") Color(0xFF16A34A) else SaffronOrange
+                                            ),
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                                        ) {
+                                            Text(
+                                                text = when (order.status) {
+                                                    "PLACED", "Placed", "Order Placed", "ACCEPTED" -> "🛵 Accept Run"
+                                                    "PICKUP_ASSIGNED" -> "📦 Confirm Pickup"
+                                                    "PICKED_UP" -> "🏪 Store Handover"
+                                                    "READY_FOR_DELIVERY", "Packed" -> "🚀 Start Delivery"
+                                                    "OUT_FOR_DELIVERY", "Out for Delivery" -> "🔑 Verify OTP & Finish"
+                                                    else -> "Mark Complete"
+                                                },
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        }
+
+                                        // Navigation Button
+                                        Button(
+                                            onClick = {
+                                                val destinationQuery = if (order.vendorName.isNotBlank()) "${order.vendorName}, New Delhi" else "Connaught Place, New Delhi"
+                                                val gmmIntentUri = android.net.Uri.parse("geo:0,0?q=" + android.net.Uri.encode(destinationQuery))
+                                                val mapIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, gmmIntentUri)
+                                                mapIntent.setPackage("com.google.android.apps.maps")
+                                                try {
+                                                    context.startActivity(mapIntent)
+                                                } catch (e: Exception) {
+                                                    val browserIntent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://www.google.com/maps/search/?api=1&query=" + android.net.Uri.encode(destinationQuery)))
+                                                    context.startActivity(browserIntent)
+                                                }
+                                            },
+                                            modifier = Modifier.weight(0.9f),
+                                            colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue),
+                                            shape = RoundedCornerShape(8.dp),
+                                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
+                                        ) {
+                                            Icon(Icons.Default.Map, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text("Navigate", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            "active" -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp)
+                ) {
+                    if (activeRun == null) {
+                        item {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                modifier = Modifier.fillMaxWidth().padding(top = 20.dp)
+                            ) {
+                                Box(modifier = Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text("📦", fontSize = 36.sp)
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text("No run currently active.", fontWeight = FontWeight.Bold, color = Color(0xFF475569))
+                                        Text("Select a run from the 'RUNS' tab to start.", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        item {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(16.dp),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Active Job #${activeRun.id}", fontWeight = FontWeight.Black, fontSize = 16.sp, color = RoyalBlue)
+                                        Surface(color = Color(0xFFDCFCE7), shape = RoundedCornerShape(6.dp)) {
+                                            Text("LIVE RUNNING 🛵", color = Color(0xFF15803D), fontSize = 10.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Text("Client Details & Wardrobe:", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    Text(activeRun.itemsSummary, fontSize = 12.sp, color = Color(0xFF475569))
+
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text("Delivery Checklist:", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    listOf(
+                                        "1. Garment Bag sealed & verified",
+                                        "2. Fragile / Silk tags inspected",
+                                        "3. Collect customer signature or 4-digit OTP"
+                                    ).forEach { item ->
+                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 2.dp)) {
+                                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF16A34A), modifier = Modifier.size(14.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(item, fontSize = 11.5.sp, color = Color(0xFF334155))
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Button(
+                                        onClick = {
+                                            selectedOrderForOtp = activeRun
+                                            otpInput = ""
+                                            showOtpDialog = true
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ) {
+                                        Text("🔑 Enter Customer Delivery OTP (Verify & Complete)", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            "earnings" -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp)
+                ) {
+                    item {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = RoyalBlue),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(18.dp)) {
+                                Text("TODAY'S ESTIMATED EARNINGS", color = LightCream, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text("₹${todayEarnings.toInt()}.00", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Black)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text("Completed Trips: ${completedRuns.size} • Shift Hours: 4.5 hrs", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
+                            }
+                        }
+                    }
+
+                    item {
+                        Text("Payout Breakdown Ledger", fontWeight = FontWeight.Bold, color = RoyalBlue, fontSize = 14.sp)
+                    }
+
+                    item {
+                        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Base Run Pay (${completedRuns.size} trips @ ₹50)", fontSize = 12.5.sp, color = Color(0xFF475569))
+                                    Text("₹${completedRuns.size * 50}", fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Peak Hours / Doorstep Incentives", fontSize = 12.5.sp, color = Color(0xFF475569))
+                                    Text("₹${completedRuns.size * 15}", fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp)
+                                }
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Daily Online Attendance Bonus", fontSize = 12.5.sp, color = Color(0xFF475569))
+                                    Text(if (isOnline) "₹50" else "₹0", fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp)
+                                }
+                                HorizontalDivider(color = Color(0xFFF1F5F9))
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Total Weekly Payout Scheduled", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoyalBlue)
+                                    Text("₹${todayEarnings.toInt()}", fontWeight = FontWeight.Black, fontSize = 14.sp, color = Color(0xFF16A34A))
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Button(
+                            onClick = {
+                                Toast.makeText(context, "Instant UPI payout requested! Settlement initiated to registered account.", Toast.LENGTH_LONG).show()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Request Instant UPI Payout ⚡", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            "fleet" -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 80.dp)
+                ) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Fleet Members (${fleetDrivers.size})", fontWeight = FontWeight.Bold, color = RoyalBlue, fontSize = 14.sp)
+                            Button(
+                                onClick = { showOnboardDriverDialog = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text("+ Add Driver", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    items(fleetDrivers) { driver ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp).fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column {
+                                    Text(driver.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = RoyalBlue)
+                                    Text("Vehicle: ${driver.vehicleType}", fontSize = 11.sp, color = Color.Gray)
+                                    Text("Status: ${driver.status}", fontSize = 11.sp, color = Color(0xFF16A34A), fontWeight = FontWeight.SemiBold)
+                                }
+                                Surface(color = Color(0xFFEFF6FF), shape = RoundedCornerShape(6.dp)) {
+                                    Text("ONLINE 🟢", color = Color(0xFF1D4ED8), fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp))
                                 }
                             }
                         }
@@ -6470,6 +7031,74 @@ fun DeliveryPartnerApp(vm: ApnaDhobiViewModel) {
         }
     }
 
+    // ==========================================
+    // DIALOG: VERIFY DELIVERY OTP
+    // ==========================================
+    if (showOtpDialog && selectedOrderForOtp != null) {
+        val currentOrder = selectedOrderForOtp!!
+        AlertDialog(
+            onDismissRequest = { if (!isVerifyingOtp) showOtpDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🔑", fontSize = 22.sp)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Verify Delivery OTP", fontWeight = FontWeight.Bold, color = Color(0xFF0F172A), fontSize = 16.sp)
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Ask customer for the 4-digit Delivery OTP sent to their mobile for Order #${currentOrder.id}.", fontSize = 12.5.sp, color = Color(0xFF475569))
+                    OutlinedTextField(
+                        value = otpInput,
+                        onValueChange = { if (it.length <= 4) otpInput = it },
+                        label = { Text("4-Digit OTP (e.g. 4920)") },
+                        singleLine = true,
+                        colors = getLightBgTextFieldColors(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val parsedOtp = otpInput.toIntOrNull()
+                        if (parsedOtp != null) {
+                            isVerifyingOtp = true
+                            vm.completeDeliveryWithOtp(currentOrder.id.toString(), parsedOtp) { success, msg ->
+                                isVerifyingOtp = false
+                                if (success) {
+                                    vm.updateOrderStatusDirectly(currentOrder.id, "Delivered")
+                                    showOtpDialog = false
+                                    Toast.makeText(context, "Order #${currentOrder.id} successfully delivered! 🎉", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        } else {
+                            Toast.makeText(context, "Please enter 4-digit OTP!", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    enabled = !isVerifyingOtp,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+                ) {
+                    if (isVerifyingOtp) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Confirm & Deliver 🎉", fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showOtpDialog = false }, enabled = !isVerifyingOtp) {
+                    Text("Cancel", color = Color.Gray)
+                }
+            }
+        )
+    }
+
+    // ==========================================
+    // DIALOG: ONBOARD DELIVERY DRIVER
+    // ==========================================
     if (showOnboardDriverDialog) {
         AlertDialog(
             onDismissRequest = { showOnboardDriverDialog = false },
