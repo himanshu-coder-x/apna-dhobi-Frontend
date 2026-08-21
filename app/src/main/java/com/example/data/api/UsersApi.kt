@@ -1,4 +1,4 @@
-﻿package com.example.data.api
+package com.example.data.api
 
 import com.example.data.dto.UserDto
 import retrofit2.Response
@@ -6,6 +6,7 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.PATCH
 
+@JvmSuppressWildcards
 interface UsersApi {
     @GET("users/profile")
     suspend fun getProfile(): Response<UserDto>

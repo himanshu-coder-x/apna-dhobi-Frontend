@@ -4,6 +4,7 @@ import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.*
 
+@JvmSuppressWildcards
 interface UploadsApi {
     @Multipart
     @POST("uploads/file")

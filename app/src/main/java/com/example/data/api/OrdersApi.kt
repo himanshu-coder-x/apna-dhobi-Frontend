@@ -8,6 +8,7 @@ import retrofit2.http.POST
 import retrofit2.http.PATCH
 import retrofit2.http.Path
 
+@JvmSuppressWildcards
 interface OrdersApi {
     @POST("orders")
     suspend fun createOrder(@Body request: CreateOrderRequest): Response<OrderDto>

@@ -4,6 +4,7 @@ import com.example.data.dto.*
 import retrofit2.Response
 import retrofit2.http.*
 
+@JvmSuppressWildcards
 interface CatalogApi {
     @GET("categories")
     suspend fun getCategories(): Response<List<CategoryDto>>

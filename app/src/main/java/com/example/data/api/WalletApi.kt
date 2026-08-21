@@ -3,6 +3,7 @@ package com.example.data.api
 import retrofit2.Response
 import retrofit2.http.*
 
+@JvmSuppressWildcards
 interface WalletApi {
     @GET("wallets/balance")
     suspend fun getBalance(): Response<Map<String, Any>>

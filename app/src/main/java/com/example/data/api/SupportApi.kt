@@ -1,4 +1,4 @@
-﻿package com.example.data.api
+package com.example.data.api
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -19,6 +19,7 @@ data class SupportTicketDto(
     @Json(name = "createdAt") val createdAt: String? = null
 )
 
+@JvmSuppressWildcards
 interface SupportApi {
     @GET("support/tickets")
     suspend fun getTickets(): Response<List<SupportTicketDto>>

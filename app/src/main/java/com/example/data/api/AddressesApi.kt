@@ -1,4 +1,4 @@
-﻿package com.example.data.api
+package com.example.data.api
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
@@ -19,6 +19,7 @@ data class AddressDto(
     @Json(name = "isDefault") val isDefault: Boolean? = false
 )
 
+@JvmSuppressWildcards
 interface AddressesApi {
     @GET("addresses")
     suspend fun getAddresses(): Response<List<AddressDto>>
