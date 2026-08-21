@@ -11,8 +11,10 @@ import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import android.content.Intent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -178,18 +180,24 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(if (isDarkMode) DarkBackground else LightCream)
+            .background(Color(0xFFFBFBFB))
     ) {
-        // Toolbar Header
+        // Toolbar Curved Header (Matching Image 2)
         Card(
-            colors = CardDefaults.cardColors(containerColor = RoyalBlue),
-            shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F47A6)),
+            shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(
+                modifier = Modifier
+                    .statusBarsPadding()
+                    .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 22.dp)
+            ) {
+                // Top Title & Notification Icon
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     if (activeSubView != "menu") {
                         IconButton(onClick = { activeSubView = "menu" }) {
@@ -197,76 +205,139 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                         }
                     }
                     Text(
-                        text = if (isHindi) "मेरा खाता" else "My Account & Support",
+                        text = "My Account & Support",
                         color = Color.White,
                         fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold,
+                        fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f)
                     )
                     IconButton(onClick = { activeSubView = "alerts" }) {
-                        Box {
-                            Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = Color.White)
-                            if (alertFeed.isNotEmpty()) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(8.dp)
-                                        .background(Color.Red, CircleShape)
-                                        .align(Alignment.TopEnd)
+                        Box(contentAlignment = Alignment.TopEnd) {
+                            Icon(
+                                Icons.Default.Notifications,
+                                contentDescription = "Notifications",
+                                tint = Color.White,
+                                modifier = Modifier.size(26.dp)
+                            )
+                            // Red Badge Dot with "1"
+                            Box(
+                                modifier = Modifier
+                                    .size(15.dp)
+                                    .offset(x = 3.dp, y = (-2).dp)
+                                    .background(Color(0xFFEF4444), CircleShape)
+                                    .border(1.dp, Color(0xFF0F47A6), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (alertFeed.isNotEmpty()) alertFeed.size.toString() else "1",
+                                    color = Color.White,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                // User details Row
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
+                // Inner Profile Card Container (Matching Image 2)
+                Surface(
+                    color = Color(0xFF1955B5),
+                    shape = RoundedCornerShape(18.dp),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Box(
+                    Row(
                         modifier = Modifier
-                            .size(64.dp)
-                            .shadow(6.dp, CircleShape)
-                            .background(SaffronOrange, CircleShape),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = name.take(1).uppercase(),
-                            color = Color.White,
-                            fontSize = 28.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(name, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
-                            IconButton(onClick = { tempName = name; showEditNameDialog = true }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit Name", tint = LightCream, modifier = Modifier.size(16.dp))
+                        // Orange Avatar with Gold Crown on bottom-right
+                        Box {
+                            Box(
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .background(Color(0xFFFF6B00), CircleShape)
+                                    .border(2.dp, Color.White.copy(alpha = 0.6f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (name.isNotBlank() && !name.startsWith("usr_")) name.take(1).uppercase() else "C",
+                                    color = Color.White,
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                            // Gold Crown attached to bottom right
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .align(Alignment.BottomEnd)
+                                    .offset(x = 2.dp, y = 2.dp)
+                                    .background(Color(0xFFF59E0B), CircleShape)
+                                    .border(1.5.dp, Color.White, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("👑", fontSize = 9.sp)
                             }
                         }
-                        Text(mobile, color = LightCream, fontSize = 13.sp)
-                        Text(email, color = LightCream.copy(alpha = 0.8f), fontSize = 12.sp)
-                    }
-                    Surface(
-                        color = SaffronOrange,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            text = "🏆 GOLD VIP MEMBER",
-                            color = Color.White,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Black,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        // Customer info
+                        val displayName = if (name.isNotBlank() && !name.startsWith("usr_")) name else if (mobile.isNotBlank()) "Customer (${mobile.takeLast(4)})" else "Customer (3210)"
+                        val displayPhone = if (mobile.isNotBlank()) mobile else "9876543210"
+                        val displayEmail = if (email.isNotBlank()) email else "${displayPhone}@apnadhobi.com"
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = displayName,
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Call, contentDescription = null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(11.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(displayPhone, color = Color.White.copy(alpha = 0.9f), fontSize = 11.sp)
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Email, contentDescription = null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(11.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(displayEmail, color = Color.White.copy(alpha = 0.9f), fontSize = 10.5.sp, maxLines = 1)
+                            }
+                        }
+
+                        // Orange Pill: GOLD VIP MEMBER
+                        Surface(
+                            color = Color(0xFFFF6B00),
+                            shape = RoundedCornerShape(12.dp),
+                            shadowElevation = 2.dp
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("👑", fontSize = 9.sp)
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "GOLD VIP MEMBER",
+                                    color = Color.White,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         when (activeSubView) {
             "alerts" -> {
@@ -292,7 +363,7 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(modifier = Modifier.padding(12.dp)) {
-                                    Icon(Icons.Default.Message, contentDescription = "SMS", tint = SaffronOrange)
+                                    Icon(Icons.Default.Notifications, contentDescription = "SMS", tint = SaffronOrange)
                                     Spacer(modifier = Modifier.width(10.dp))
                                     Text(alertMessage, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                                 }
@@ -312,7 +383,6 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                 }
             }
             "support" -> {
-                // Collapsible Live Chat chatbot interface integrated right on profile!
                 Box(modifier = Modifier.weight(1f)) {
                     ProfileSettingsAndChatCentric(vm)
                 }
@@ -413,123 +483,152 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
             "menu" -> {
                 LazyColumn(
                     modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 90.dp)
                 ) {
-                    // Profile quick redirects
+                    // Card 1: 4 Core Navigation Items (Matching Image 2)
                     item {
                         Card(
                             colors = CardDefaults.cardColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(18.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+                            border = BorderStroke(1.dp, Color(0xFFF1F5F9)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                ProfileMenuListItem(
-                                    icon = Icons.Default.Room,
-                                    title = "Saved Addresses & Locations",
-                                    subtitle = "${savedAddressesList.size} managed sectors",
-                                    onClick = { activeSubView = "address" }
-                                )
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                                ProfileMenuListItem(
-                                    icon = Icons.Default.ListAlt,
-                                    title = "My Wardrobe Orders History",
-                                    subtitle = "Track active or delivered clothes",
+                            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                                ProfileModernMenuItem(
+                                    icon = Icons.Default.ShoppingBag,
+                                    iconBg = Color(0xFFEFF6FF),
+                                    iconTint = Color(0xFF2563EB),
+                                    title = "My Orders",
+                                    subtitle = "Track your active & past orders",
                                     onClick = { vm.selectBottomTab("orders") }
                                 )
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                                ProfileMenuListItem(
+                                HorizontalDivider(color = Color(0xFFF1F5F9), modifier = Modifier.padding(horizontal = 16.dp))
+                                ProfileModernMenuItem(
+                                    icon = Icons.Default.LocationOn,
+                                    iconBg = Color(0xFFEFF6FF),
+                                    iconTint = Color(0xFF2563EB),
+                                    title = "Saved Addresses",
+                                    subtitle = "Manage your delivery addresses",
+                                    onClick = { vm.navigateTo(ApnaDhobiScreen.LocationSelection) }
+                                )
+                                HorizontalDivider(color = Color(0xFFF1F5F9), modifier = Modifier.padding(horizontal = 16.dp))
+                                ProfileModernMenuItem(
                                     icon = Icons.Default.AccountBalanceWallet,
-                                    title = "My Apna Wallet Rewards",
-                                    subtitle = "Earn cashback, coupons and refer friends",
+                                    iconBg = Color(0xFFEFF6FF),
+                                    iconTint = Color(0xFF2563EB),
+                                    title = "Wallet & Rewards",
+                                    subtitle = "View balance, cashback & coupons",
                                     onClick = { vm.selectBottomTab("wallet") }
                                 )
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                                ProfileMenuListItem(
-                                    icon = Icons.Default.Map,
-                                    title = "Google Map & Satellite Tracking",
-                                    subtitle = "Live delivery tracker, auto customer GPS & outlet mappings",
-                                    onClick = { activeSubView = "google_maps_view" }
-                                )
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                                ProfileMenuListItem(
-                                    icon = Icons.Default.Email,
-                                    title = "POP & SMTP Email Configuration",
-                                    subtitle = "Gmail auth setup, status templates & promo mass campaign",
-                                    onClick = { activeSubView = "email_config" }
+                                HorizontalDivider(color = Color(0xFFF1F5F9), modifier = Modifier.padding(horizontal = 16.dp))
+                                ProfileModernMenuItem(
+                                    icon = Icons.Default.Headphones,
+                                    iconBg = Color(0xFFEFF6FF),
+                                    iconTint = Color(0xFF2563EB),
+                                    title = "Help & Support",
+                                    subtitle = "FAQs, raise a ticket & more",
+                                    onClick = { activeSubView = "support" }
                                 )
                             }
                         }
                     }
 
-                    // Preferences and Language
+                    // Card 2: Gold Membership ⭐ Card (Matching Image 2)
                     item {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(16.dp),
+                        Surface(
+                            color = Color(0xFFEFF6FF),
+                            shape = RoundedCornerShape(18.dp),
+                            border = BorderStroke(1.dp, Color(0xFFDBEAFE)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
+                            Column(modifier = Modifier.padding(16.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Language, contentDescription = "", tint = RoyalBlue)
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Text("Translate app into Hindi / हिन्दी", fontWeight = FontWeight.Medium)
-                                    }
-                                    Switch(checked = isHindi, onCheckedChange = { vm.isHindi.value = it })
-                                }
-
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.BrightnessMedium, contentDescription = "", tint = RoyalBlue)
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Text("Force Dark Visual Theme", fontWeight = FontWeight.Medium)
-                                    }
-                                    Switch(checked = isDarkMode, onCheckedChange = { vm.isDarkMode.value = it })
-                                }
-                            }
-                        }
-                    }
-
-                    // Coupons & Active Memberships list
-                    item {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Text("Membership & Rewards VIP", fontWeight = FontWeight.Bold, color = RoyalBlue)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("Current Tier: Gold Plus Premium Deluxe", fontSize = 12.sp, fontWeight = FontWeight.Black, color = SaffronOrange)
-                                Text("Next Reward milestone: 1000 points. Clean 2 heavy coats to unlock ₹100 cashback!", fontSize = 11.sp, color = Color.Gray)
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                Text("Unlocked Promo Coupon Codes ($couponRewardCount active)", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    modifier = Modifier.padding(top = 8.dp)
-                                ) {
-                                    listOf("DHOBI20", "FREESHIP", "SAMEDAY").forEach { c ->
-                                        Surface(
-                                            color = RoyalBlue.copy(alpha = 0.1f),
-                                            shape = RoundedCornerShape(8.dp),
-                                            modifier = Modifier.clickable {
-                                                vm.appliedCoupon.value = c
-                                                Toast.makeText(context, "$c code applied!", Toast.LENGTH_SHORT).show()
-                                            }
+                                    Row(
+                                        modifier = Modifier.weight(1f),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(42.dp)
+                                                .background(Color(0xFF1D4ED8), CircleShape),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Text(c, modifier = Modifier.padding(8.dp), fontWeight = FontWeight.Bold, color = RoyalBlue)
+                                            Text("👑", fontSize = 20.sp)
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text("Gold Membership ⭐", fontWeight = FontWeight.Bold, fontSize = 14.5.sp, color = Color(0xFF1E3A8A))
+                                            Text("Enjoy exclusive rewards & benefits", fontSize = 11.5.sp, color = Color(0xFF64748B))
+                                        }
+                                    }
+                                    // Gift Box Illustration
+                                    Text("🎁", fontSize = 34.sp)
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                // Perks Row
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    listOf(
+                                        "Free Wash on Points",
+                                        "Priority Support",
+                                        "Special Offers"
+                                    ).forEach { perk ->
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(14.dp)
+                                                    .background(Color(0xFFFF6B00), CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(10.dp))
+                                            }
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(perk, fontSize = 10.5.sp, color = Color(0xFF1E293B), fontWeight = FontWeight.Medium)
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Coupon tags row
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    listOf(
+                                        Triple("DHOBI20", "20% OFF", "20% OFF"),
+                                        Triple("FREESHIP", "Free Delivery", "Free Delivery"),
+                                        Triple("SAMEDAY", "Same Day Service", "Same Day Service")
+                                    ).forEach { (code, label, _) ->
+                                        Surface(
+                                            color = Color.White,
+                                            shape = RoundedCornerShape(8.dp),
+                                            border = BorderStroke(1.dp, Color(0xFF93C5FD)),
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .clickable {
+                                                    vm.appliedCoupon.value = code
+                                                    Toast.makeText(context, "$code coupon applied! 🎉", Toast.LENGTH_SHORT).show()
+                                                }
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(vertical = 6.dp, horizontal = 4.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally
+                                            ) {
+                                                Text(code, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF1D4ED8))
+                                                Text(label, fontSize = 9.sp, color = Color(0xFF64748B), maxLines = 1)
+                                            }
                                         }
                                     }
                                 }
@@ -537,104 +636,189 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
                         }
                     }
 
-                    // Register as Vendor Option Button
+                    // Card 3: Become a Vendor (Matching Image 2)
                     item {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = SaffronOrange.copy(alpha = 0.15f)),
-                            shape = RoundedCornerShape(16.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { vm.navigateTo(ApnaDhobiScreen.VendorRegistration) }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.Store, contentDescription = "", tint = SaffronOrange, modifier = Modifier.size(28.dp))
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text("Register as Laundry Vendor 🧺", fontWeight = FontWeight.Black, color = SaffronOrange)
-                                    Text("Digitize your store & reach 15,000+ local customers", fontSize = 11.sp)
-                                }
-                            }
-                        }
-                    }
-
-                    // Help Desk and Chat Bot
-                    item {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(16.dp),
+                        Surface(
+                            color = Color(0xFFFFF7ED),
+                            shape = RoundedCornerShape(18.dp),
+                            border = BorderStroke(1.dp, Color(0xFFFFEDD5)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Text("Need help with an item stain?", fontWeight = FontWeight.Bold, color = RoyalBlue)
-                                Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
                                 Row(
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Button(
-                                        onClick = { activeSubView = "support" },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = RoyalBlue)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(Color(0xFFFFEDD5), RoundedCornerShape(10.dp)),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(Icons.Default.Android, contentDescription = "")
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("AI Bot Chat", fontSize = 11.sp)
+                                        Text("🏪", fontSize = 20.sp)
                                     }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text("Become a Vendor", fontWeight = FontWeight.Bold, fontSize = 14.5.sp, color = Color(0xFFC2410C))
+                                        Text("Grow your laundry business with us", fontSize = 11.5.sp, color = Color(0xFF64748B))
+                                    }
+                                }
 
-                                    Button(
-                                        onClick = {
-                                            Toast.makeText(context, "Dialing support: +91 1800-DHOBI 📞", Toast.LENGTH_LONG).show()
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange)
-                                    ) {
-                                        Icon(Icons.Default.Call, contentDescription = "")
+                                Button(
+                                    onClick = { vm.navigateTo(ApnaDhobiScreen.VendorRegistration) },
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF6B00)),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Register Now", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                         Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Call Helpline", fontSize = 11.sp)
+                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
                                     }
                                 }
                             }
                         }
                     }
 
-                    // Logout & Account options
+                    // Card 4: Become a Delivery Partner (Matching Image 2)
+                    item {
+                        Surface(
+                            color = Color(0xFFEFF6FF),
+                            shape = RoundedCornerShape(18.dp),
+                            border = BorderStroke(1.dp, Color(0xFFDBEAFE)),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    modifier = Modifier.weight(1f),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .background(Color(0xFFDBEAFE), RoundedCornerShape(10.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("🛵", fontSize = 20.sp)
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text("Become a Delivery Partner", fontWeight = FontWeight.Bold, fontSize = 14.5.sp, color = Color(0xFF1E40AF))
+                                        Text("Earn with flexible delivery jobs", fontSize = 11.5.sp, color = Color(0xFF64748B))
+                                    }
+                                }
+
+                                Button(
+                                    onClick = { vm.navigateTo(ApnaDhobiScreen.DeliveryBoyDashboard) },
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0F47A6)),
+                                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Register Now", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Card 5: Need help with your account? (Matching Image 2)
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Need help with your account?",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.5.sp,
+                                color = Color(0xFF0F172A)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = { activeSubView = "support" },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.dp, Color(0xFF93C5FD)),
+                                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFFEFF6FF).copy(alpha = 0.5f))
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("🤖", fontSize = 16.sp)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("AI Support", color = Color(0xFF1D4ED8), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    }
+                                }
+
+                                OutlinedButton(
+                                    onClick = {
+                                        val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:1800346244"))
+                                        try {
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "Dialing support: 1800-DHOBI 📞", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(44.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFFDBA74)),
+                                    colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFFFFF7ED).copy(alpha = 0.5f))
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.Call, contentDescription = null, tint = Color(0xFFEA580C), modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Call Support", color = Color(0xFFEA580C), fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Optional Discreet Logout link
                     item {
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.Center
                         ) {
-                            OutlinedButton(
+                            TextButton(
                                 onClick = {
                                     vm.isLoggedIn.value = false
                                     vm.navigateTo(ApnaDhobiScreen.Login)
-                                    Toast.makeText(context, "Log Out Success!", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.DarkGray)
+                                    Toast.makeText(context, "Logged out successfully.", Toast.LENGTH_SHORT).show()
+                                }
                             ) {
-                                Text("Log Out")
-                            }
-
-                            Button(
-                                onClick = {
-                                    Toast.makeText(context, "Your subscription details & account deleted 🗑️", Toast.LENGTH_LONG).show()
-                                    vm.isLoggedIn.value = false
-                                    vm.navigateTo(ApnaDhobiScreen.Login)
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = RedAlert)
-                            ) {
-                                Text("Delete Account", fontSize = 12.sp)
+                                Text("Log Out from Account", color = Color(0xFF94A3B8), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
                 }
             }
         }
-        Spacer(modifier = Modifier.height(80.dp))
     }
 
     // Modal dialogue
@@ -796,6 +980,45 @@ fun UserProfileDashboard(vm: ApnaDhobiViewModel) {
 }
 
 @Composable
+fun ProfileModernMenuItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconBg: Color,
+    iconTint: Color,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(iconBg, RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = title, tint = iconTint, modifier = Modifier.size(20.dp))
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF0F172A))
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(subtitle, fontSize = 11.5.sp, color = Color(0xFF64748B))
+        }
+        Icon(
+            Icons.AutoMirrored.Filled.ArrowForward,
+            contentDescription = null,
+            tint = Color(0xFF94A3B8),
+            modifier = Modifier.size(16.dp)
+        )
+    }
+}
+
+@Composable
 fun ProfileMenuListItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
@@ -823,7 +1046,7 @@ fun ProfileMenuListItem(
             Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Text(subtitle, fontSize = 12.sp, color = Color.Gray)
         }
-        Icon(Icons.Default.ArrowForward, contentDescription = "", tint = Color.LightGray, modifier = Modifier.size(16.dp))
+        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "", tint = Color.LightGray, modifier = Modifier.size(16.dp))
     }
 }
 
