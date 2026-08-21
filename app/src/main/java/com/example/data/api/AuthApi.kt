@@ -6,7 +6,7 @@ import retrofit2.http.*
 
 interface AuthApi {
     @POST("auth/send-otp")
-    suspend fun sendOtp(@Body request: SendOtpRequest): Response<Unit>
+    suspend fun sendOtp(@Body request: SendOtpRequest): Response<SendOtpResponse>
 
     @POST("auth/verify-otp")
     suspend fun verifyOtp(@Body request: VerifyOtpRequest): Response<AuthResponse>

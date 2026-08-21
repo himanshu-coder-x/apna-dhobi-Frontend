@@ -14,7 +14,7 @@ object RetrofitClient {
     const val LOCAL_EMULATOR_URL = "http://10.0.2.2:3000/api/v1/"
     const val REMOTE_PROD_URL = "https://apna-dhobi-backend.onrender.com/api/v1/"
     
-    var BASE_URL: String = LOCAL_EMULATOR_URL
+    var BASE_URL: String = REMOTE_PROD_URL
     private var authToken: String? = null
 
     fun setAuthToken(token: String?) {
@@ -38,8 +38,9 @@ object RetrofitClient {
             }
             chain.proceed(requestBuilder.build())
         }
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(90, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
+        .writeTimeout(90, TimeUnit.SECONDS)
         .build()
 
     private val retrofit = Retrofit.Builder()

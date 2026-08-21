@@ -12,6 +12,7 @@ import android.util.Base64
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -129,28 +130,19 @@ class MainActivity : ComponentActivity() {
 }
 
 // ==========================================
-// REVERSE GEOCODING HELPER
+// REVERSE GEOCODING & LOCATION SEARCH HELPERS
 // ==========================================
 suspend fun fetchAddressFromCoordinates(context: Context, lat: Double, lon: Double): String = withContext(Dispatchers.IO) {
     try {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            val geocoder = Geocoder(context, Locale.getDefault())
-            var resultStr = ""
-            geocoder.getFromLocation(lat, lon, 1) { addresses ->
-                if (addresses.isNotEmpty()) {
-                    val addr = addresses[0]
-                    resultStr = addr.getAddressLine(0) ?: "${addr.subLocality ?: ""}, ${addr.locality ?: ""}"
-                }
-            }
-            if (resultStr.isNotBlank()) return@withContext resultStr
-        } else {
-            @Suppress("DEPRECATION")
-            val geocoder = Geocoder(context, Locale.getDefault())
-            val addresses = geocoder.getFromLocation(lat, lon, 1)
-            if (!addresses.isNullOrEmpty()) {
-                val line = addresses[0].getAddressLine(0)
-                if (!line.isNullOrBlank()) return@withContext line
-            }
+        @Suppress("DEPRECATION")
+        val geocoder = Geocoder(context, Locale.getDefault())
+        val addresses = geocoder.getFromLocation(lat, lon, 1)
+        if (!addresses.isNullOrEmpty()) {
+            val addr = addresses[0]
+            val line = addr.getAddressLine(0)
+            if (!line.isNullOrBlank()) return@withContext line
+            val fallback = listOfNotNull(addr.featureName, addr.subLocality, addr.locality, addr.postalCode).joinToString(", ")
+            if (fallback.isNotBlank()) return@withContext fallback
         }
     } catch (e: Exception) {
         e.printStackTrace()
@@ -174,6 +166,49 @@ suspend fun fetchAddressFromCoordinates(context: Context, lat: Double, lon: Doub
     }
 
     "Connaught Place, New Delhi, Delhi 110001"
+}
+
+suspend fun searchLocationsFromQuery(context: Context, query: String): List<Triple<String, Double, Double>> = withContext(Dispatchers.IO) {
+    val results = mutableListOf<Triple<String, Double, Double>>()
+    if (query.isBlank()) return@withContext results
+    try {
+        @Suppress("DEPRECATION")
+        val geocoder = Geocoder(context, Locale.getDefault())
+        val addresses = geocoder.getFromLocationName(query, 5)
+        if (!addresses.isNullOrEmpty()) {
+            for (addr in addresses) {
+                val name = addr.getAddressLine(0) ?: "${addr.featureName ?: ""}, ${addr.locality ?: ""}"
+                results.add(Triple(name, addr.latitude, addr.longitude))
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+    if (results.isEmpty()) {
+        try {
+            val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+            val url = URL("https://nominatim.openstreetmap.org/search?format=json&q=$encoded&limit=5")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.setRequestProperty("User-Agent", "ApnaDhobiAndroidApp/1.0")
+            conn.connectTimeout = 4000
+            conn.readTimeout = 4000
+            if (conn.responseCode == 200) {
+                val json = conn.inputStream.bufferedReader().readText()
+                val jsonArray = org.json.JSONArray(json)
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.getJSONObject(i)
+                    val disp = obj.optString("display_name")
+                    val lat = obj.optDouble("lat")
+                    val lon = obj.optDouble("lon")
+                    results.add(Triple(disp, lat, lon))
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+    results
 }
 
 // ==========================================
@@ -767,6 +802,8 @@ fun LoginScreen(vm: ApnaDhobiViewModel) {
     val otp by vm.loginOtp.collectAsState()
     val isOtpSent by vm.isOtpSent.collectAsState()
     val isRegistrationRequired by vm.isRegistrationRequired.collectAsState()
+    val showOtpPopup by vm.showOtpPopup.collectAsState()
+    val receivedOtpCode by vm.receivedOtpCode.collectAsState()
 
     var authTab by remember { mutableStateOf("login") } // "login", "profile", "admin"
     
@@ -1308,7 +1345,7 @@ fun LoginScreen(vm: ApnaDhobiViewModel) {
                                     ) {
                                         Column {
                                             Text("OTP sent to +91 ${mobileNumber.ifBlank { "9876543210" }}", color = Color(0xFF0F3E88), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                            Text("Test OTP: 1234", color = Color(0xFF64748B), fontSize = 11.sp)
+                                            Text("Your OTP: ${receivedOtpCode ?: "1234"}", color = Color(0xFF059669), fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
                                         }
                                         TextButton(onClick = { vm.isOtpSent.value = false }) {
                                             Text("Edit", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SaffronOrange)
@@ -1757,58 +1794,150 @@ fun LoginScreen(vm: ApnaDhobiViewModel) {
             Spacer(modifier = Modifier.height(30.dp))
         }
 
-        // Google Sign In Pop-up Dialog
+        // Google Sign In Pop-up Dialog (Professional & Real-Time)
         if (showGoogleDialog) {
-            Dialog(onDismissRequest = { showGoogleDialog = false }) {
+            var googleEmailInput by remember { mutableStateOf("") }
+            var googleNameInput by remember { mutableStateOf("") }
+            var isSubmittingGoogle by remember { mutableStateOf(false) }
+
+            Dialog(onDismissRequest = { if (!isSubmittingGoogle) showGoogleDialog = false }) {
                 Card(
                     modifier = Modifier
-                        .fillMaxWidth(0.9f)
-                        .padding(16.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                        .fillMaxWidth(0.95f)
+                        .padding(12.dp),
+                    shape = RoundedCornerShape(22.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(12.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(24.dp),
+                        modifier = Modifier.padding(22.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        GoogleColoredLogo(modifier = Modifier.size(42.dp))
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text("Choose Google Account", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                        GoogleColoredLogo(modifier = Modifier.size(44.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text("Sign In with Google", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF0F172A))
+                        Text("Enter your Google Account email to continue", fontSize = 12.sp, color = Color(0xFF64748B), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        listOf("user@apnadhobi.com", "customer.dhobi@gmail.com").forEach { acc ->
-                            Surface(
-                                onClick = {
-                                    showGoogleDialog = false
+                        OutlinedTextField(
+                            value = googleEmailInput,
+                            onValueChange = { googleEmailInput = it },
+                            placeholder = { Text("your.email@gmail.com", fontSize = 13.5.sp) },
+                            leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = Color(0xFF4285F4)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        OutlinedTextField(
+                            value = googleNameInput,
+                            onValueChange = { googleNameInput = it },
+                            placeholder = { Text("Your Full Name (Optional)", fontSize = 13.5.sp) },
+                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, tint = Color(0xFF64748B)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            singleLine = true
+                        )
+
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        Button(
+                            onClick = {
+                                if (googleEmailInput.isNotBlank() && googleEmailInput.contains("@")) {
+                                    isSubmittingGoogle = true
                                     coroutineScope.launch {
-                                        if (vm.attemptGoogleLogin(acc)) {
-                                            if (vm.postAuthDestination != null) {
-                                                val dest = vm.postAuthDestination!!
-                                                vm.postAuthDestination = null
-                                                vm.navigateTo(dest)
-                                            } else {
-                                                vm.navigateTo(ApnaDhobiScreen.LocationSelection)
-                                            }
+                                        val success = vm.attemptGoogleLogin(googleEmailInput.trim(), googleNameInput.trim())
+                                        isSubmittingGoogle = false
+                                        if (success) {
+                                            showGoogleDialog = false
                                         }
                                     }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                color = Color(0xFFF8FAFC),
-                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Default.AccountCircle, contentDescription = null, tint = Color(0xFF0F3E88))
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(acc, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color(0xFF0F172A))
+                                } else {
+                                    Toast.makeText(context, "Please enter a valid Google email address", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)),
+                            enabled = !isSubmittingGoogle
+                        ) {
+                            if (isSubmittingGoogle) {
+                                CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                            } else {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.AccountCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Continue with Google", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                 }
                             }
                         }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        TextButton(onClick = { showGoogleDialog = false }, enabled = !isSubmittingGoogle) {
+                            Text("Cancel", color = Color.Gray, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Top In-App Dynamic OTP Delivery Pop-up / Notification Banner
+        AnimatedVisibility(
+            visible = showOtpPopup && !receivedOtpCode.isNullOrBlank(),
+            enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+            exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(16.dp)
+        ) {
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F3E88)),
+                elevation = CardDefaults.cardElevation(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = SaffronOrange,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Default.NotificationsActive, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("📲 Apna Dhobi Verification Code", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Your one-time login OTP is: ${receivedOtpCode ?: ""}", color = Color(0xFFFFD54F), fontWeight = FontWeight.Black, fontSize = 14.sp)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            receivedOtpCode?.let { vm.loginOtp.value = it }
+                            vm.showOtpPopup.value = false
+                        },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = SaffronOrange),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text("Auto-Fill", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                    IconButton(
+                        onClick = { vm.showOtpPopup.value = false },
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White.copy(alpha = 0.8f))
                     }
                 }
             }
@@ -2397,8 +2526,8 @@ fun CategoryModernVisual(
     val resolvedCatImg = rawCatImg?.let { url ->
         when {
             url.startsWith("http://") || url.startsWith("https://") -> url
-            url.startsWith("/") -> "http://10.0.2.2:3000$url"
-            else -> "http://10.0.2.2:3000/$url"
+            url.startsWith("/") -> "https://apna-dhobi-backend.onrender.com$url"
+            else -> "https://apna-dhobi-backend.onrender.com/$url"
         }
     }
 
@@ -2984,8 +3113,8 @@ fun HomeDashboardContent(vm: ApnaDhobiViewModel) {
                     val resolvedVendorImg = rawVendorImg?.let { url ->
                         when {
                             url.startsWith("http://") || url.startsWith("https://") -> url
-                            url.startsWith("/") -> "http://10.0.2.2:3000$url"
-                            else -> "http://10.0.2.2:3000/$url"
+                            url.startsWith("/") -> "https://apna-dhobi-backend.onrender.com$url"
+                            else -> "https://apna-dhobi-backend.onrender.com/$url"
                         }
                     }
 
@@ -3271,7 +3400,7 @@ fun HomeDashboardContent(vm: ApnaDhobiViewModel) {
 }
 
 // ==========================================
-// LOCATION SELECTION SCREEN (FULLY INTERACTIVE & SEARCHABLE)
+// LOCATION SELECTION SCREEN (FULLY INTERACTIVE & REAL-TIME GPS)
 // ==========================================
 @Composable
 fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
@@ -3283,25 +3412,23 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
     val customerLng by vm.customerLng.collectAsState()
     val currentAddress by vm.currentFullAddress.collectAsState()
 
-    BackHandler {
-        vm.navigateBack()
-    }
-    
     var searchQuery by remember { mutableStateOf("") }
     var addressDetailText by remember { mutableStateOf(currentAddress) }
     var selectedLabel by remember { mutableStateOf("Home") }
     var houseFlatNo by remember { mutableStateOf("") }
     var isDetecting by remember { mutableStateOf(false) }
+    var searchResults by remember { mutableStateOf<List<Triple<String, Double, Double>>>(emptyList()) }
+    var isSearchingLocations by remember { mutableStateOf(false) }
 
-    // Popular predefined search location suggestions
-    val searchSuggestions = remember {
-        listOf(
-            Triple("Connaught Place", 28.6315, 77.2167),
-            Triple("Hauz Khas, New Delhi", 28.5494, 77.2001),
-            Triple("Cyber City, Gurugram", 28.4950, 77.0895),
-            Triple("Lajpat Nagar, New Delhi", 28.5677, 77.2433),
-            Triple("Saket District Centre, Delhi", 28.5286, 77.2194)
-        )
+    fun handleSaveAndProceed() {
+        val finalFormatted = if (houseFlatNo.isNotBlank()) "$houseFlatNo, $addressDetailText" else addressDetailText
+        vm.saveNewAddress(finalFormatted, selectedLabel)
+        vm.currentFullAddress.value = finalFormatted
+        vm.navigateTo(ApnaDhobiScreen.HomeFrame)
+    }
+
+    BackHandler {
+        handleSaveAndProceed()
     }
 
     val currentPosition = LatLng(customerLat, customerLng)
@@ -3310,13 +3437,61 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
     }
     val markerState = rememberMarkerState(position = currentPosition)
 
+    // Android Location Permission Request Launcher
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineGranted = permissions[android.Manifest.permission.ACCESS_FINE_LOCATION] == true
+        val coarseGranted = permissions[android.Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (fineGranted || coarseGranted) {
+            isDetecting = true
+            vm.fetchRealGpsLocation(context) { lat, lng, addr ->
+                isDetecting = false
+                addressDetailText = addr
+                coroutineScope.launch {
+                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17f))
+                }
+            }
+        } else {
+            Toast.makeText(context, "Location permission required to get live GPS position.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     // Trigger real hardware GPS fetch immediately on launch
     LaunchedEffect(Unit) {
-        vm.fetchRealGpsLocation(context) { lat, lng, addr ->
-            addressDetailText = addr
-            coroutineScope.launch {
-                cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17f))
+        val hasFine = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val hasCoarse = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
+        if (hasFine || hasCoarse) {
+            isDetecting = true
+            vm.fetchRealGpsLocation(context) { lat, lng, addr ->
+                isDetecting = false
+                addressDetailText = addr
+                coroutineScope.launch {
+                    cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17f))
+                }
             }
+        } else {
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    // Dynamic Search Autocomplete Debounce
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.trim().length >= 2) {
+            isSearchingLocations = true
+            delay(350)
+            val results = searchLocationsFromQuery(context, searchQuery.trim())
+            searchResults = results
+            isSearchingLocations = false
+        } else {
+            searchResults = emptyList()
+            isSearchingLocations = false
         }
     }
 
@@ -3360,14 +3535,14 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    onClick = { vm.navigateBack() },
+                    onClick = { handleSaveAndProceed() },
                     shape = CircleShape,
                     color = Color.White,
                     shadowElevation = 6.dp,
                     modifier = Modifier.size(44.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Charcoal)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to Home", tint = Charcoal)
                     }
                 }
                 Spacer(modifier = Modifier.width(10.dp))
@@ -3412,15 +3587,74 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                     elevation = CardDefaults.cardElevation(8.dp)
                 ) {
                     Column(modifier = Modifier.padding(8.dp)) {
-                        searchSuggestions
-                            .filter { it.first.contains(searchQuery, ignoreCase = true) || searchQuery.length > 1 }
-                            .forEach { (name, lat, lng) ->
+                        // Option 1: Use Real Current Device Location (GPS)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    searchQuery = ""
+                                    keyboardController?.hide()
+                                    isDetecting = true
+                                    vm.fetchRealGpsLocation(context) { lat, lng, addr ->
+                                        isDetecting = false
+                                        addressDetailText = addr
+                                        coroutineScope.launch {
+                                            cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17f))
+                                        }
+                                    }
+                                }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                shape = CircleShape,
+                                color = SaffronOrange.copy(alpha = 0.15f),
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(Icons.Default.MyLocation, contentDescription = null, tint = SaffronOrange, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("📍 Use Current Location", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = SaffronOrange)
+                                Text("Using device GPS live precision", fontSize = 11.5.sp, color = Color.Gray)
+                            }
+                        }
+                        HorizontalDivider(color = Color.LightGray.copy(alpha = 0.4f))
+
+                        if (isSearchingLocations) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), color = SaffronOrange, strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Searching places...", fontSize = 13.sp, color = Color.Gray)
+                            }
+                        } else {
+                            val itemsToShow = if (searchResults.isNotEmpty()) searchResults else listOf(
+                                Triple("Connaught Place, New Delhi", 28.6315, 77.2167),
+                                Triple("Hauz Khas, New Delhi", 28.5494, 77.2001),
+                                Triple("Cyber City, Gurugram", 28.4950, 77.0895),
+                                Triple("Lajpat Nagar, New Delhi", 28.5677, 77.2433),
+                                Triple("Saket District Centre, Delhi", 28.5286, 77.2194)
+                            ).filter { it.first.contains(searchQuery, ignoreCase = true) || searchQuery.length > 1 }
+
+                            itemsToShow.forEach { (name, lat, lng) ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            searchQuery = name
+                                            searchQuery = ""
                                             keyboardController?.hide()
+                                            addressDetailText = name
+                                            vm.customerLat.value = lat
+                                            vm.customerLng.value = lng
+                                            markerState.position = LatLng(lat, lng)
                                             coroutineScope.launch {
                                                 cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17f))
                                             }
@@ -3430,10 +3664,11 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                                 ) {
                                     Icon(Icons.Default.LocationOn, contentDescription = null, tint = SaffronOrange, modifier = Modifier.size(20.dp))
                                     Spacer(modifier = Modifier.width(10.dp))
-                                    Text(name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                    Text(name, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
-                                HorizontalDivider(color = Color.LightGray.copy(alpha = 0.4f))
+                                HorizontalDivider(color = Color.LightGray.copy(alpha = 0.3f))
                             }
+                        }
                     }
                 }
             }
@@ -3443,14 +3678,21 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
         Surface(
             onClick = {
                 isDetecting = true
-                vm.fetchRealGpsLocation(context) { lat, lng, addr ->
-                    isDetecting = false
-                    addressDetailText = addr
-                    coroutineScope.launch {
-                        cameraPositionState.animate(
-                            CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17f)
-                        )
+                val hasFine = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                val hasCoarse = androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                if (hasFine || hasCoarse) {
+                    vm.fetchRealGpsLocation(context) { lat, lng, addr ->
+                        isDetecting = false
+                        addressDetailText = addr
+                        coroutineScope.launch {
+                            cameraPositionState.animate(
+                                CameraUpdateFactory.newLatLngZoom(LatLng(lat, lng), 17f)
+                            )
+                        }
                     }
+                } else {
+                    isDetecting = false
+                    permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
                 }
             },
             shape = RoundedCornerShape(24.dp),
@@ -3533,11 +3775,8 @@ fun LocationSelectionScreen(vm: ApnaDhobiViewModel) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = {
-                        val finalFormatted = if (houseFlatNo.isNotBlank()) "$houseFlatNo, $addressDetailText" else addressDetailText
-                        vm.saveNewAddress(finalFormatted, selectedLabel)
-                        vm.currentFullAddress.value = finalFormatted
+                        handleSaveAndProceed()
                         Toast.makeText(context, "Location Saved!", Toast.LENGTH_SHORT).show()
-                        vm.navigateBack()
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -4896,8 +5135,8 @@ fun ProductListingScreen(vm: ApnaDhobiViewModel, categoryId: String, categoryNam
                                 val resolvedImg = rawImg?.let { url ->
                                     when {
                                         url.startsWith("http://") || url.startsWith("https://") -> url
-                                        url.startsWith("/") -> "http://10.0.2.2:3000$url"
-                                        else -> "http://10.0.2.2:3000/$url"
+                                        url.startsWith("/") -> "https://apna-dhobi-backend.onrender.com$url"
+                                        else -> "https://apna-dhobi-backend.onrender.com/$url"
                                     }
                                 }
 
@@ -5582,8 +5821,8 @@ fun VendorShopScreen(vm: ApnaDhobiViewModel, vendorId: String) {
         if (mainImg != null) {
             val resolved = when {
                 mainImg.startsWith("http://") || mainImg.startsWith("https://") -> mainImg
-                mainImg.startsWith("/") -> "http://10.0.2.2:3000$mainImg"
-                else -> "http://10.0.2.2:3000/$mainImg"
+                mainImg.startsWith("/") -> "https://apna-dhobi-backend.onrender.com$mainImg"
+                else -> "https://apna-dhobi-backend.onrender.com/$mainImg"
             }
             list.add(resolved)
         }

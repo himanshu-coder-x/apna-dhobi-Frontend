@@ -59,8 +59,8 @@ fun ApnaNetworkImage(
 
     val resolvedUrl = when {
         url.startsWith("http://") || url.startsWith("https://") -> url
-        url.startsWith("/") -> "http://10.0.2.2:3000$url"
-        else -> "http://10.0.2.2:3000/$url"
+        url.startsWith("/") -> "https://apna-dhobi-backend.onrender.com$url"
+        else -> "https://apna-dhobi-backend.onrender.com/$url"
     }
 
     var bitmap by remember(resolvedUrl) {
@@ -306,8 +306,8 @@ fun PromoBannerSlider(
     val resolvedImgUrl = rawImg?.let { url ->
         when {
             url.startsWith("http://") || url.startsWith("https://") -> url
-            url.startsWith("/") -> "http://10.0.2.2:3000$url"
-            else -> "http://10.0.2.2:3000/$url"
+            url.startsWith("/") -> "https://apna-dhobi-backend.onrender.com$url"
+            else -> "https://apna-dhobi-backend.onrender.com/$url"
         }
     }
 
@@ -576,8 +576,8 @@ fun MidBannerSlider(
     val resolvedImgUrl = rawImg?.let { url ->
         when {
             url.startsWith("http://") || url.startsWith("https://") -> url
-            url.startsWith("/") -> "http://10.0.2.2:3000$url"
-            else -> "http://10.0.2.2:3000/$url"
+            url.startsWith("/") -> "https://apna-dhobi-backend.onrender.com$url"
+            else -> "https://apna-dhobi-backend.onrender.com/$url"
         }
     }
 

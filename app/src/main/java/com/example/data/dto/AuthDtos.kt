@@ -9,6 +9,14 @@ data class SendOtpRequest(
 )
 
 @JsonClass(generateAdapter = true)
+data class SendOtpResponse(
+    @Json(name = "message") val message: String? = "OTP sent successfully",
+    @Json(name = "phone") val phone: String? = "",
+    @Json(name = "otp") val otp: String? = null,
+    @Json(name = "isRegistered") val isRegistered: Boolean? = true
+)
+
+@JsonClass(generateAdapter = true)
 data class VerifyOtpRequest(
     @Json(name = "phone") val phone: String,
     @Json(name = "otp") val otp: String

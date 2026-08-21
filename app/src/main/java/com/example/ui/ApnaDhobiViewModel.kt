@@ -77,6 +77,8 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
     var loginOtp = MutableStateFlow("")
     var isOtpSent = MutableStateFlow(false)
     var isRegistrationRequired = MutableStateFlow(false)
+    var receivedOtpCode = MutableStateFlow<String?>(null)
+    var showOtpPopup = MutableStateFlow(false)
     var otpCountdown = MutableStateFlow(0) // Countdown in seconds
     var isLoggedIn = MutableStateFlow(true)
     var isHindi = MutableStateFlow(false)
@@ -1116,7 +1118,12 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
             screenStack.removeAt(screenStack.size - 1)
         }
         if (screenStack.isNotEmpty()) {
-            _currentScreen.value = screenStack.removeAt(screenStack.size - 1)
+            val prev = screenStack.removeAt(screenStack.size - 1)
+            if (isLoggedIn.value && (prev is ApnaDhobiScreen.Login || prev is ApnaDhobiScreen.Splash)) {
+                _currentScreen.value = ApnaDhobiScreen.HomeFrame
+            } else {
+                _currentScreen.value = prev
+            }
         } else {
             _currentScreen.value = ApnaDhobiScreen.HomeFrame
         }
@@ -1407,61 +1414,84 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun fetchRealGpsLocation(context: android.content.Context, onComplete: (Double, Double, String) -> Unit) {
         viewModelScope.launch {
-            locationDetectionLog.value = "GPS Hardware: Checking location permissions..."
             val hasFine = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
             val hasCoarse = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
             
             if (hasFine || hasCoarse) {
-                locationDetectionLog.value = "GPS Hardware: Accessing FusedLocationProviderClient..."
                 try {
-                    fusedLocationClient.lastLocation.addOnSuccessListener { loc ->
-                        if (loc != null) {
-                            val lat = loc.latitude
-                            val lng = loc.longitude
-                            customerLat.value = lat
-                            customerLng.value = lng
-                            locationDetectionLog.value = "GPS Hardware: Precision Lock acquired [$lat, $lng]"
-                            viewModelScope.launch {
-                                val addr = com.example.fetchAddressFromCoordinates(context, lat, lng)
-                                currentFullAddress.value = addr
-                                pushSimulatedNotification("Location lock: $addr ($lat, $lng)")
-                                onComplete(lat, lng, addr)
+                    fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                        .addOnSuccessListener { loc ->
+                            if (loc != null) {
+                                val lat = loc.latitude
+                                val lng = loc.longitude
+                                customerLat.value = lat
+                                customerLng.value = lng
+                                viewModelScope.launch {
+                                    val addr = com.example.fetchAddressFromCoordinates(context, lat, lng)
+                                    currentFullAddress.value = addr
+                                    onComplete(lat, lng, addr)
+                                }
+                            } else {
+                                fusedLocationClient.lastLocation.addOnSuccessListener { lastLoc ->
+                                    if (lastLoc != null) {
+                                        val lat = lastLoc.latitude
+                                        val lng = lastLoc.longitude
+                                        customerLat.value = lat
+                                        customerLng.value = lng
+                                        viewModelScope.launch {
+                                            val addr = com.example.fetchAddressFromCoordinates(context, lat, lng)
+                                            currentFullAddress.value = addr
+                                            onComplete(lat, lng, addr)
+                                        }
+                                    } else {
+                                        viewModelScope.launch {
+                                            val addr = com.example.fetchAddressFromCoordinates(context, customerLat.value, customerLng.value)
+                                            onComplete(customerLat.value, customerLng.value, addr)
+                                        }
+                                    }
+                                }.addOnFailureListener {
+                                    viewModelScope.launch {
+                                        val addr = com.example.fetchAddressFromCoordinates(context, customerLat.value, customerLng.value)
+                                        onComplete(customerLat.value, customerLng.value, addr)
+                                    }
+                                }
                             }
-                        } else {
-                            locationDetectionLog.value = "GPS Hardware: Requesting fresh single fix..."
-                            val locReq = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000).setMaxUpdates(1).build()
-                            val callback = object : LocationCallback() {
-                                override fun onLocationResult(res: LocationResult) {
-                                    val location = res.lastLocation ?: return
-                                    val lat = location.latitude
-                                    val lng = location.longitude
+                        }
+                        .addOnFailureListener {
+                            fusedLocationClient.lastLocation.addOnSuccessListener { lastLoc ->
+                                if (lastLoc != null) {
+                                    val lat = lastLoc.latitude
+                                    val lng = lastLoc.longitude
                                     customerLat.value = lat
                                     customerLng.value = lng
-                                    locationDetectionLog.value = "GPS Hardware: Single fix acquired [$lat, $lng]"
                                     viewModelScope.launch {
                                         val addr = com.example.fetchAddressFromCoordinates(context, lat, lng)
                                         currentFullAddress.value = addr
-                                        pushSimulatedNotification("Location lock: $addr ($lat, $lng)")
                                         onComplete(lat, lng, addr)
                                     }
-                                    fusedLocationClient.removeLocationUpdates(this)
+                                } else {
+                                    viewModelScope.launch {
+                                        val addr = com.example.fetchAddressFromCoordinates(context, customerLat.value, customerLng.value)
+                                        onComplete(customerLat.value, customerLng.value, addr)
+                                    }
+                                }
+                            }.addOnFailureListener {
+                                viewModelScope.launch {
+                                    val addr = com.example.fetchAddressFromCoordinates(context, customerLat.value, customerLng.value)
+                                    onComplete(customerLat.value, customerLng.value, addr)
                                 }
                             }
-                            try {
-                                fusedLocationClient.requestLocationUpdates(locReq, callback, android.os.Looper.getMainLooper())
-                            } catch (e: SecurityException) {
-                                simulateGpsLocationDetection { addr -> onComplete(customerLat.value, customerLng.value, addr) }
-                            }
                         }
-                    }.addOnFailureListener {
-                        simulateGpsLocationDetection { addr -> onComplete(customerLat.value, customerLng.value, addr) }
-                    }
+                } catch (e: SecurityException) {
+                    val addr = com.example.fetchAddressFromCoordinates(context, customerLat.value, customerLng.value)
+                    onComplete(customerLat.value, customerLng.value, addr)
                 } catch (e: Exception) {
-                    simulateGpsLocationDetection { addr -> onComplete(customerLat.value, customerLng.value, addr) }
+                    val addr = com.example.fetchAddressFromCoordinates(context, customerLat.value, customerLng.value)
+                    onComplete(customerLat.value, customerLng.value, addr)
                 }
             } else {
-                locationDetectionLog.value = "GPS Hardware: Permission missing. Using CP fallback."
-                simulateGpsLocationDetection { addr -> onComplete(customerLat.value, customerLng.value, addr) }
+                val addr = com.example.fetchAddressFromCoordinates(context, customerLat.value, customerLng.value)
+                onComplete(customerLat.value, customerLng.value, addr)
             }
         }
     }
@@ -1861,7 +1891,7 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
                     postAuthDestination = null
                     _currentScreen.value = dest
                 } else {
-                    _currentScreen.value = ApnaDhobiScreen.LocationSelection
+                    _currentScreen.value = ApnaDhobiScreen.HomeFrame
                 }
                 pushSimulatedNotification("Welcome ${auth.user?.name}! Profile created successfully.")
                 
@@ -1870,7 +1900,7 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
                     sendUserRegistrationSmtpEmail(name, email, phone)
                 }
             } else {
-                pushSimulatedNotification("Registration failed. Please try again.")
+                pushSimulatedNotification("Registration failed. Please verify your details or check if phone is already registered.")
             }
         }
     }
@@ -1885,26 +1915,42 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun sendOtp(phone: String) {
         viewModelScope.launch {
-            if (phone.length < 10) {
+            val cleanPhone = phone.filter { it.isDigit() }
+            if (cleanPhone.length < 10) {
                 pushSimulatedNotification("Please enter a valid 10-digit mobile number.")
                 return@launch
             }
+            val formattedPhone = if (cleanPhone.length > 10) cleanPhone.takeLast(10) else cleanPhone
 
-            // UI state immediately update for fast feedback
-            isOtpSent.value = true
-            startOtpCountdown()
-            
-            // Check registration status to prepare UI flow
-            val isRegistered = repository.checkRegistration(phone)
-            if (!isRegistered) {
-                pushSimulatedNotification("New user detected! OTP sent for registration.")
+            isGlobalLoading.value = true
+            val response = repository.sendOtp(formattedPhone)
+            isGlobalLoading.value = false
+
+            if (response != null) {
+                if (response.isRegistered == false) {
+                    isRegistrationRequired.value = true
+                    pushSimulatedNotification("Account not found for $formattedPhone. Please complete your profile to sign up!")
+                } else {
+                    isOtpSent.value = true
+                    val otpVal = response.otp ?: ((1000..9999).random().toString())
+                    receivedOtpCode.value = otpVal
+                    showOtpPopup.value = true
+                    startOtpCountdown()
+                    pushSimulatedNotification("Verification code sent! OTP is $otpVal")
+                }
             } else {
-                pushSimulatedNotification("Welcome back! OTP sent for login.")
-            }
-
-            val success = repository.sendOtp(phone)
-            if (!success) {
-                pushSimulatedNotification("Note: Backend API failed, but using Sandbox mode (Test OTP: 1234).")
+                val isReg = repository.checkRegistration(formattedPhone)
+                if (!isReg) {
+                    isRegistrationRequired.value = true
+                    pushSimulatedNotification("Account not found for $formattedPhone. Please complete your profile!")
+                } else {
+                    isOtpSent.value = true
+                    val randomOtp = (1000..9999).random().toString()
+                    receivedOtpCode.value = randomOtp
+                    showOtpPopup.value = true
+                    startOtpCountdown()
+                    pushSimulatedNotification("OTP generated: $randomOtp")
+                }
             }
         }
     }
@@ -1947,7 +1993,7 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
             } else if (isCurrentUserDelivery.value) {
                 _currentScreen.value = ApnaDhobiScreen.DeliveryBoyDashboard
             } else {
-                _currentScreen.value = ApnaDhobiScreen.LocationSelection
+                _currentScreen.value = ApnaDhobiScreen.HomeFrame
             }
             return true
         }
@@ -1966,14 +2012,13 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
         return success
     }
 
-    suspend fun attemptGoogleLogin(email: String): Boolean {
-        // Parse name from email for simulation
-        val parsedName = email.substringBefore("@").replace(".", " ").capitalize()
-        val auth = repository.attemptGoogleLogin(email, parsedName)
+    suspend fun attemptGoogleLogin(email: String, name: String = ""): Boolean {
+        val finalName = if (name.isNotBlank()) name else email.substringBefore("@").replace(".", " ").replaceFirstChar { it.uppercase() }
+        val auth = repository.attemptGoogleLogin(email.trim(), finalName)
         return if (auth != null) {
             userId.value = auth.user?.id ?: ""
-            userName.value = auth.user?.name ?: ""
-            userEmail.value = auth.user?.email ?: ""
+            userName.value = auth.user?.name ?: finalName
+            userEmail.value = auth.user?.email ?: email
             userPhone.value = auth.user?.phone ?: ""
             isLoggedIn.value = true
             isCurrentUserAdmin.value = auth.user?.roles?.contains("ADMIN") == true
@@ -1985,10 +2030,12 @@ class ApnaDhobiViewModel(application: Application) : AndroidViewModel(applicatio
                 postAuthDestination = null
                 _currentScreen.value = dest
             } else {
-                _currentScreen.value = ApnaDhobiScreen.LocationSelection
+                _currentScreen.value = ApnaDhobiScreen.HomeFrame
             }
+            pushSimulatedNotification("Welcome back, ${userName.value}!")
             true
         } else {
+            pushSimulatedNotification("Google Sign-In failed. Please try again.")
             false
         }
     }

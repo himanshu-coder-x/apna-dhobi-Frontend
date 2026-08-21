@@ -80,19 +80,30 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
     private val uploadsApi = RetrofitClient.uploadsApi
 
     // Auth Actions
-    suspend fun sendOtp(phone: String): Boolean {
+    suspend fun sendOtp(phone: String): SendOtpResponse? {
         return try {
-            authApi.sendOtp(SendOtpRequest(phone.trim())).isSuccessful
+            val response = authApi.sendOtp(SendOtpRequest(phone.trim()))
+            if (!response.isSuccessful) {
+                Log.e("ApnaDhobiRepository", "sendOtp failed: HTTP ${response.code()} - ${response.message()}")
+                null
+            } else {
+                response.body()
+            }
         } catch (e: Exception) {
-            false
+            Log.e("ApnaDhobiRepository", "sendOtp network exception for $phone: ${e.message}", e)
+            null
         }
     }
 
     suspend fun checkRegistration(phone: String): Boolean {
         return try {
             val response = authApi.checkRegistration(phone.trim())
+            if (!response.isSuccessful) {
+                Log.e("ApnaDhobiRepository", "checkRegistration failed: HTTP ${response.code()} - ${response.message()}")
+            }
             response.isSuccessful && response.body()?.get("isRegistered") == true
         } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "checkRegistration network exception for $phone: ${e.message}", e)
             false
         }
     }
@@ -100,8 +111,12 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
     suspend fun validateReferral(code: String): Boolean {
         return try {
             val response = authApi.validateReferral(code.trim())
+            if (!response.isSuccessful) {
+                Log.e("ApnaDhobiRepository", "validateReferral failed: HTTP ${response.code()} - ${response.message()}")
+            }
             response.isSuccessful && response.body()?.get("isValid") == true
         } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "validateReferral network exception for $code: ${e.message}", e)
             false
         }
     }
@@ -121,8 +136,12 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
                         ))
                     }
                 }
-            } else null
+            } else {
+                Log.e("ApnaDhobiRepository", "register failed: HTTP ${response.code()} - ${response.message()}")
+                null
+            }
         } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "register network exception: ${e.message}", e)
             null
         }
     }
@@ -260,8 +279,12 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
                         categoryTag = it.categoryTag ?: "Laundry"
                     )
                 } ?: emptyList()
-            } else emptyList()
+            } else {
+                Log.e("ApnaDhobiRepository", "fetchVendors failed: HTTP ${response.code()} - ${response.message()}")
+                emptyList()
+            }
         } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "fetchVendors network exception: ${e.message}", e)
             emptyList()
         }
     }
@@ -273,8 +296,12 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
                 response.body()?.map { 
                     LaundryProduct(it.id, it.name, it.categoryId, it.originalPrice, it.discountPrice, it.deliveryEstimate ?: "Same Day", it.popularBadge, it.imageUrl)
                 } ?: emptyList()
-            } else emptyList()
+            } else {
+                Log.e("ApnaDhobiRepository", "fetchProducts failed: HTTP ${response.code()} - ${response.message()}")
+                emptyList()
+            }
         } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "fetchProducts network exception: ${e.message}", e)
             emptyList()
         }
     }
@@ -363,8 +390,12 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
             val response = walletApi.getBalance()
             if (response.isSuccessful) {
                 (response.body()?.get("balance") as? Number)?.toDouble() ?: 0.0
-            } else 0.0
+            } else {
+                Log.e("ApnaDhobiRepository", "fetchWalletBalance failed: HTTP ${response.code()} - ${response.message()}")
+                0.0
+            }
         } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "fetchWalletBalance network exception: ${e.message}", e)
             0.0
         }
     }
@@ -466,8 +497,12 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
                         status = dto.status
                     )
                 } ?: emptyList()
-            } else emptyList()
+            } else {
+                Log.e("ApnaDhobiRepository", "fetchOrders failed: HTTP ${response.code()} - ${response.message()}")
+                emptyList()
+            }
         } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "fetchOrders network exception: ${e.message}", e)
             emptyList()
         }
     }
@@ -488,8 +523,12 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
                         status = dto.status
                     )
                 } ?: emptyList()
-            } else emptyList()
+            } else {
+                Log.e("ApnaDhobiRepository", "fetchVendorOrders failed: HTTP ${response.code()} - ${response.message()}")
+                emptyList()
+            }
         } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "fetchVendorOrders network exception: ${e.message}", e)
             emptyList()
         }
     }
@@ -513,8 +552,12 @@ class ApnaDhobiRepository(private val dao: ApnaDhobiDao) {
                     ))
                 }
                 dto
-            } else null
+            } else {
+                Log.e("ApnaDhobiRepository", "createOrder failed: HTTP ${response.code()} - ${response.message()}")
+                null
+            }
         } catch (e: Exception) {
+            Log.e("ApnaDhobiRepository", "createOrder network exception: ${e.message}", e)
             null
         }
     }
